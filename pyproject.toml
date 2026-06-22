@@ -31,9 +31,11 @@ packages = ["src/forex_trader"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-ra"
+# Integration tests hit the live OANDA practice API; exclude them by default so
+# the standard suite is hermetic. Run them with: pytest -m integration
+addopts = "-ra -m 'not integration'"
 markers = [
-  "integration: tests that require external broker credentials",
+  "integration: tests that require external broker credentials and network",
 ]
 
 [tool.ruff]
