@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 from urllib import error, request
@@ -8,6 +9,15 @@ from urllib import error, request
 from forex_trader.broker.base import Broker
 from forex_trader.domain.enums import OrderSide, PositionStatus
 from forex_trader.domain.models import OrderResult, Position, Quote, new_id
+
+
+@dataclass(frozen=True)
+class BrokerHealth:
+    ok: bool
+    reason: str
+    balance: float = 0.0
+    currency: str = ""
+    open_trade_count: int = 0
 
 
 class OandaBroker(Broker):
@@ -53,6 +63,22 @@ class OandaBroker(Broker):
                 f"OANDA {method} {path} network error: {exc.reason}"
             ) from exc
         return cast(dict[str, Any], decoded)
+
+    def health_check(self) -> BrokerHealth:
+        """Read-only account summary fetch used at startup to confirm the
+        credentials and connectivity are good before any trading."""
+        data = self._request("GET", f"/v3/accounts/{self.account_id}/summary")
+        account = data.get("account")
+        if not account:
+            reason = data.get("errorMessage", "OANDA account summary unavailable.")
+            return BrokerHealth(ok=False, reason=reason)
+        return BrokerHealth(
+            ok=True,
+            reason="OANDA account summary fetched.",
+            balance=float(account.get("balance", "0")),
+            currency=str(account.get("currency", "")),
+            open_trade_count=int(account.get("openTradeCount", 0)),
+        )
 
     def get_quote(self, symbol: str) -> Quote:
         data = self._request("GET", f"/v3/accounts/{self.account_id}/pricing?instruments={symbol}")
