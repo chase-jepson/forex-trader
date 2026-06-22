@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from forex_trader.broker.base import Broker
+from forex_trader.domain.enums import OrderSide
 from forex_trader.domain.models import Candle, ExecutionResult, Position, Quote, TradePlan, new_id
 from forex_trader.llm.explainer import explain_decision
 from forex_trader.market.sessions import (
@@ -184,6 +185,59 @@ class ExecutionOrchestrator:
                     mistake_tags=["time_exit"],
                 )
         return closed
+
+    def resolve_stop_target_fills(
+        self,
+        *,
+        candle: Candle,
+        now: datetime,
+    ) -> list[Position]:
+        """Close open positions whose stop or target was touched intra-bar.
+
+        When a single candle spans both the stop and the target we resolve the
+        stop first (pessimistic convention), since we cannot see intra-bar
+        ordering. Fills occur at the exact stop/target price.
+        """
+        closed: list[Position] = []
+        for position in self.broker.list_open_positions():
+            hit_price = self._stop_or_target_hit(position, candle)
+            if hit_price is None:
+                continue
+            closed_position = self._close_at(position.position_id, hit_price, now)
+            closed.append(closed_position)
+            self.daily_realized_pnl += closed_position.realized_pnl
+            exit_kind = "stop_loss" if hit_price == position.stop_loss else "take_profit"
+            self.review_service.create_review(
+                trade_id=position.position_id,
+                outcome=_outcome_for_pnl(closed_position.realized_pnl),
+                pnl=closed_position.realized_pnl,
+                market_context={"exit_price": hit_price, "candle_high": candle.high,
+                                "candle_low": candle.low},
+                rule_snapshot={"exit": exit_kind},
+                risk_reason=f"Intra-bar {exit_kind} fill.",
+                mistake_tags=["rule_failed" if exit_kind == "stop_loss" else "rule_worked"],
+            )
+        return closed
+
+    @staticmethod
+    def _stop_or_target_hit(position: Position, candle: Candle) -> float | None:
+        if position.side == OrderSide.BUY:
+            stop_hit = candle.low <= position.stop_loss
+            target_hit = candle.high >= position.take_profit
+        else:
+            stop_hit = candle.high >= position.stop_loss
+            target_hit = candle.low <= position.take_profit
+        if stop_hit:
+            return position.stop_loss  # pessimistic: stop resolves first
+        if target_hit:
+            return position.take_profit
+        return None
+
+    def _close_at(self, position_id: str, price: float, now: datetime) -> Position:
+        close_at = getattr(self.broker, "close_position_at", None)
+        if callable(close_at):
+            return close_at(position_id, price, now)  # type: ignore[no-any-return]
+        return self.broker.close_position(position_id, price, now)
 
 
 def _outcome_for_pnl(pnl: float) -> str:

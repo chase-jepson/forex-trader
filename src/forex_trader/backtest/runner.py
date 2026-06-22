@@ -97,7 +97,8 @@ def run_backtest(
             )
             broker.set_quote(quote)
 
-            # Force-close anything past its hold/cutoff using the live quote.
+            # Resolve intra-bar stop/target fills first, then time/session exits.
+            orchestrator.resolve_stop_target_fills(candle=current, now=current.time)
             orchestrator.close_expired_positions(
                 now=current.time,
                 price=None,

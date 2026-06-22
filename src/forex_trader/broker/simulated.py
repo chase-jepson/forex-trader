@@ -112,3 +112,17 @@ class SimulatedBroker(Broker):
         exit_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
         exit_price = self._fill_price(exit_side, price)
         return position.close(price=exit_price, closed_at=closed_at or datetime.now(UTC))
+
+    def close_position_at(
+        self,
+        position_id: str,
+        exact_price: float,
+        closed_at: datetime | None = None,
+    ) -> Position:
+        """Close at an exact price with no spread adjustment.
+
+        Used for stop-loss/take-profit fills, where the level itself is already
+        the realistic execution price and applying a spread would double-count.
+        """
+        position = self._positions[position_id]
+        return position.close(price=exact_price, closed_at=closed_at or datetime.now(UTC))

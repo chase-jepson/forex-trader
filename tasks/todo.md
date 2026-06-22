@@ -23,13 +23,14 @@ strategy research). Run until clear work is exhausted. Commit per chunk, no push
 
 ## Phase 2 — Sim fidelity (Direction 3)
 - [x] Spread/slippage cost model on entry & exit
-- [x] Intra-bar stop/target fill resolution
-- [x] Continuous candle feed simulator
+- [ ] Intra-bar stop/target fill resolution (TODO: still close-only; revisit)
+- [x] Continuous candle feed simulator (synthetic generator)
 
 ## Phase 3 — Backtest harness (Direction 1)
 - [x] CSV candle loader + synthetic generator
 - [x] Backtest runner over historical candles -> persisted cycles/reviews
 - [x] Backtest report (equity curve, win rate, expectancy, max drawdown)
+- [x] env loading (Settings.from_env) — was a real wiring gap, fixed
 
 ## Phase 4 — OANDA practice (Direction 2)
 - [x] Real position read-back with correct fields
