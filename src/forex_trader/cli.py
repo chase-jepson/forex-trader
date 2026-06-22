@@ -4,6 +4,7 @@ import argparse
 import sys
 from datetime import datetime
 
+from forex_trader.backtest.compare import format_comparison
 from forex_trader.backtest.feed import generate_synthetic_candles, load_candles_csv
 from forex_trader.backtest.runner import run_backtest
 from forex_trader.config import Settings
@@ -32,8 +33,30 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--session-end", default="09:00")
     bt.add_argument("--session-tz", default="America/Mexico_City")
 
+    ev = sub.add_parser("evidence", help="Backtest all strategies and write a verdict report.")
+    ev.add_argument("--days", type=int, default=5, help="Fixture length in days.")
+    ev.add_argument("--seed", type=int, default=0, help="Fixture random seed.")
+    ev.add_argument(
+        "--out", default="docs/reviews/strategy-evidence.md", help="Report output path."
+    )
+
     sub.add_parser("status", help="Print active mode and startup safety status.")
     return parser
+
+
+def run_evidence_command(*, days: int, seed: int, out_path: str) -> int:
+    from pathlib import Path
+
+    from forex_trader.backtest.evidence import build_evidence_report
+
+    table, report = build_evidence_report(days=days, seed=seed)
+    out = Path(out_path)
+    if out.parent != Path("."):
+        out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report + "\n")
+    print(format_comparison(table))
+    print(f"\nReport written to {out_path}")
+    return 0
 
 
 def run_backtest_command(
@@ -103,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
             start=args.start,
             csv=args.csv,
         )
+    if args.command == "evidence":
+        return run_evidence_command(days=args.days, seed=args.seed, out_path=args.out)
     if args.command == "status":
         return run_status_command()
     return 2
