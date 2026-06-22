@@ -44,7 +44,9 @@ def test_position_sizing_uses_equity_risk_and_stop_distance():
 
 
 def test_simulated_broker_opens_closes_and_calculates_pnl():
-    broker = SimulatedBroker()
+    # With a 1-pip half-spread the buy fills at 1.1001 (ask) and the close at
+    # 1.1009 (bid), so a 10-pip mid move nets 8 pips after the spread cost.
+    broker = SimulatedBroker(half_spread_pips=1.0)
     opened_at = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
 
     order = broker.place_market_order(
@@ -60,5 +62,5 @@ def test_simulated_broker_opens_closes_and_calculates_pnl():
 
     assert order.accepted is True
     assert broker.list_open_positions() == []
-    assert round(closed.realized_pnl, 2) == 10.0
+    assert round(closed.realized_pnl, 2) == 8.0
 

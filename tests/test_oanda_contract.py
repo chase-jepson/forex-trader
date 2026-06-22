@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from forex_trader.broker.oanda import OandaBroker
+from forex_trader.domain.enums import OrderSide
 
 
 class FakeOandaBroker(OandaBroker):
@@ -29,9 +30,23 @@ class FakeOandaBroker(OandaBroker):
                 }
             }
         if path == "/v3/accounts/acct/openPositions":
-            return {"positions": []}
+            return {
+                "positions": [
+                    {
+                        "instrument": "EUR_USD",
+                        "long": {"units": "10000", "averagePrice": "1.10000"},
+                        "short": {"units": "0", "averagePrice": "0"},
+                    }
+                ]
+            }
         if path == "/v3/accounts/acct/positions/EUR_USD/close":
-            return {"longOrderFillTransaction": {"price": "1.10100"}}
+            return {
+                "longOrderFillTransaction": {
+                    "price": "1.10100",
+                    "units": "-10000",
+                    "pl": "10.0000",
+                }
+            }
         raise AssertionError(path)
 
 
@@ -54,15 +69,32 @@ def test_oanda_quote_and_order_request_shapes():
     assert broker.requests[1][2]["order"]["stopLossOnFill"]["price"] == "1.09900"
 
 
-def test_oanda_close_position_uses_position_close_endpoint():
+def test_oanda_read_back_uses_real_average_price_and_side():
+    broker = FakeOandaBroker()
+
+    positions = broker.list_open_positions()
+
+    assert len(positions) == 1
+    position = positions[0]
+    assert position.symbol == "EUR_USD"
+    assert position.side == OrderSide.BUY
+    assert position.units == 10_000
+    assert position.entry_price == 1.10000
+
+
+def test_oanda_close_uses_authoritative_pl_from_oanda():
     broker = FakeOandaBroker()
 
     closed = broker.close_position(
         "EUR_USD",
-        price=1.1010,
+        price=None,
         closed_at=datetime.fromisoformat("2026-06-22T12:10:00+00:00"),
     )
 
     assert closed.symbol == "EUR_USD"
-    assert closed.close_price == 1.1010
+    assert closed.close_price == 1.10100
+    # PnL comes straight from OANDA's reported realized P/L, not a recomputation.
+    assert closed.realized_pnl == 10.0
+    assert closed.units == 10_000
+    assert closed.side == OrderSide.BUY
     assert broker.requests[0][0] == "PUT"

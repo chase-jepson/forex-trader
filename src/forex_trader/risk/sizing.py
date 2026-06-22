@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from forex_trader.domain.models import PIP_VALUE_PER_UNIT
+
 
 def calculate_units_for_risk(
     *,
     equity: float,
     max_risk_fraction: float,
     stop_loss_pips: float,
-    pip_value_per_unit: float = 0.0001,
+    pip_value_per_unit: float = PIP_VALUE_PER_UNIT,
 ) -> int:
     if equity <= 0:
         raise ValueError("equity must be positive")

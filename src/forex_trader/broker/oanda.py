@@ -6,7 +6,7 @@ from typing import Any, cast
 from urllib import request
 
 from forex_trader.broker.base import Broker
-from forex_trader.domain.enums import OrderSide
+from forex_trader.domain.enums import OrderSide, PositionStatus
 from forex_trader.domain.models import OrderResult, Position, Quote, new_id
 
 
@@ -60,7 +60,7 @@ class OandaBroker(Broker):
         symbol: str,
         side: str | OrderSide,
         units: int,
-        price: float,
+        price: float | None,
         stop_loss: float,
         take_profit: float,
         opened_at: datetime | None = None,
@@ -80,7 +80,10 @@ class OandaBroker(Broker):
         }
         data = self._request("POST", f"/v3/accounts/{self.account_id}/orders", payload)
         order_fill = data.get("orderFillTransaction", {})
-        fill_price = float(order_fill.get("price", price))
+        raw_price = order_fill.get("price", price)
+        if raw_price is None:
+            raise ValueError("OANDA order returned no fill price and none was supplied.")
+        fill_price = float(raw_price)
         return OrderResult(
             order_id=str(order_fill.get("orderID", new_id("oanda-order"))),
             position_id=str(order_fill.get("id", new_id("oanda-pos"))),
@@ -128,7 +131,7 @@ class OandaBroker(Broker):
     def close_position(
         self,
         position_id: str,
-        price: float,
+        price: float | None = None,
         closed_at: datetime | None = None,
     ) -> Position:
         payload = {"longUnits": "ALL", "shortUnits": "ALL"}
@@ -137,16 +140,36 @@ class OandaBroker(Broker):
             f"/v3/accounts/{self.account_id}/positions/{position_id}/close",
             payload,
         )
-        fill = data.get("longOrderFillTransaction") or data.get("shortOrderFillTransaction") or {}
+        long_fill = data.get("longOrderFillTransaction")
+        short_fill = data.get("shortOrderFillTransaction")
+        # A long position is closed by a sell fill, a short by a buy fill.
+        if long_fill is not None:
+            fill = long_fill
+            closed_side = OrderSide.BUY
+        elif short_fill is not None:
+            fill = short_fill
+            closed_side = OrderSide.SELL
+        else:
+            raise ValueError(f"OANDA close for {position_id} returned no fill transaction.")
+        if price is None and "price" not in fill:
+            raise ValueError(f"OANDA close for {position_id} reported no fill price.")
         close_price = float(fill.get("price", price))
+        units = abs(int(float(fill.get("units", "0"))))
+        when = closed_at or datetime.now(UTC)
         position = Position(
             position_id=position_id,
             symbol=position_id,
-            side=OrderSide.BUY,
-            units=0,
-            entry_price=price,
+            side=closed_side,
+            units=units,
+            entry_price=close_price,
             stop_loss=0.0,
             take_profit=0.0,
-            opened_at=closed_at or datetime.now(UTC),
+            opened_at=when,
+            status=PositionStatus.CLOSED,
+            closed_at=when,
+            close_price=close_price,
+            # Trust OANDA's authoritative realized P/L rather than recomputing
+            # against an entry price we did not capture on this adapter.
+            realized_pnl=float(fill["pl"]) if "pl" in fill else 0.0,
         )
-        return position.close(price=close_price, closed_at=closed_at or datetime.now(UTC))
+        return position

@@ -4,16 +4,24 @@ from datetime import UTC, datetime
 
 from forex_trader.broker.base import Broker
 from forex_trader.domain.enums import OrderSide, PositionStatus
-from forex_trader.domain.models import OrderResult, Position, Quote, new_id
+from forex_trader.domain.models import PIP_SIZE, OrderResult, Position, Quote, new_id
 
 
 class SimulatedBroker(Broker):
-    def __init__(self, default_price: float = 1.1000) -> None:
+    """In-memory broker with realistic fill modeling.
+
+    Buys fill at the ask and sells fill at the bid, so a flat round trip loses
+    the spread. The half-spread is applied around the requested mid price when
+    an explicit fill price is not derivable from the current quote.
+    """
+
+    def __init__(self, default_price: float = 1.1000, half_spread_pips: float = 1.0) -> None:
         now = datetime.now(UTC)
+        self.half_spread = half_spread_pips * PIP_SIZE
         self._quote = Quote(
             "EUR_USD",
-            bid=default_price - 0.0001,
-            ask=default_price + 0.0001,
+            bid=default_price - self.half_spread,
+            ask=default_price + self.half_spread,
             time=now,
         )
         self._positions: dict[str, Position] = {}
@@ -31,19 +39,34 @@ class SimulatedBroker(Broker):
             )
         return self._quote
 
+    def _fill_price(self, side: OrderSide, requested_price: float | None) -> float:
+        """Resolve the executable fill price for a side.
+
+        Prefer the live quote's ask (buy) or bid (sell). If a price is supplied
+        and the quote does not cover it, apply the half-spread to that price.
+        """
+        quote = self._quote
+        if requested_price is None:
+            return quote.ask if side == OrderSide.BUY else quote.bid
+        # Apply the spread cost around the requested (mid) price.
+        if side == OrderSide.BUY:
+            return requested_price + self.half_spread
+        return requested_price - self.half_spread
+
     def place_market_order(
         self,
         *,
         symbol: str,
         side: str | OrderSide,
         units: int,
-        price: float,
+        price: float | None,
         stop_loss: float,
         take_profit: float,
         opened_at: datetime | None = None,
     ) -> OrderResult:
         order_side = side if isinstance(side, OrderSide) else OrderSide(side)
         opened = opened_at or datetime.now(UTC)
+        fill_price = self._fill_price(order_side, price)
         position_id = new_id("pos")
         order = OrderResult(
             order_id=new_id("ord"),
@@ -53,7 +76,7 @@ class SimulatedBroker(Broker):
             symbol=symbol,
             side=order_side,
             units=units,
-            fill_price=price,
+            fill_price=fill_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
             opened_at=opened,
@@ -63,7 +86,7 @@ class SimulatedBroker(Broker):
             symbol=symbol,
             side=order_side,
             units=units,
-            entry_price=price,
+            entry_price=fill_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
             opened_at=opened,
@@ -80,8 +103,12 @@ class SimulatedBroker(Broker):
     def close_position(
         self,
         position_id: str,
-        price: float,
+        price: float | None,
         closed_at: datetime | None = None,
     ) -> Position:
         position = self._positions[position_id]
-        return position.close(price=price, closed_at=closed_at or datetime.now(UTC))
+        # Exiting a long means selling (receive bid); exiting a short means
+        # buying (pay ask). Resolve the exit price accordingly.
+        exit_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
+        exit_price = self._fill_price(exit_side, price)
+        return position.close(price=exit_price, closed_at=closed_at or datetime.now(UTC))

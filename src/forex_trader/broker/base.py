@@ -19,7 +19,7 @@ class Broker(ABC):
         symbol: str,
         side: str | OrderSide,
         units: int,
-        price: float,
+        price: float | None,
         stop_loss: float,
         take_profit: float,
         opened_at: datetime,
@@ -31,6 +31,8 @@ class Broker(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def close_position(self, position_id: str, price: float, closed_at: datetime) -> Position:
+    def close_position(
+        self, position_id: str, price: float | None, closed_at: datetime
+    ) -> Position:
         raise NotImplementedError
 

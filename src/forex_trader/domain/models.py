@@ -10,6 +10,12 @@ from forex_trader.domain.enums import OrderSide, PositionStatus
 
 PIP_SIZE = 0.0001
 
+# Value in account currency of a one-pip move on a single unit.
+# For a USD-quoted pair such as EUR/USD this equals the pip size: one unit
+# moving one pip changes position value by $0.0001. Sizing and PnL both
+# reference this single constant so they always reconcile.
+PIP_VALUE_PER_UNIT = 0.0001
+
 
 def new_id(prefix: str) -> str:
     return f"{prefix}-{uuid4().hex[:12]}"
@@ -109,14 +115,23 @@ class Position:
     close_price: float | None = None
     realized_pnl: float = 0.0
 
-    def close(self, price: float, closed_at: datetime | None = None) -> Position:
+    def close(
+        self,
+        price: float,
+        closed_at: datetime | None = None,
+        cost: float = 0.0,
+    ) -> Position:
         self.closed_at = closed_at or datetime.now(UTC)
         self.close_price = price
         self.status = PositionStatus.CLOSED
         if self.side == OrderSide.BUY:
-            self.realized_pnl = (price - self.entry_price) * self.units
+            move = price - self.entry_price
         else:
-            self.realized_pnl = (self.entry_price - price) * self.units
+            move = self.entry_price - price
+        pips = move / PIP_SIZE
+        # Single shared pip-value model: PnL = pips * units * value-per-pip-per-unit.
+        # Matches the assumption position sizing uses, so risk and PnL reconcile.
+        self.realized_pnl = pips * self.units * PIP_VALUE_PER_UNIT - cost
         return self
 
 
