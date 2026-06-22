@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from forex_trader.domain.models import new_id
+from forex_trader.llm.reviewer import summarize_review
 from forex_trader.review.models import TradeReview
 from forex_trader.storage.repositories import TradingRepository
 
@@ -35,6 +37,7 @@ class TradeReviewService:
             mistake_tags=tags,
             improvement_hypothesis=improvement,
         )
+        review = replace(review, summary=summarize_review(review))
         if self.repository is not None:
             self.repository.save_review(
                 review_id=review.review_id,

@@ -18,10 +18,16 @@ Forex Trader is a local-first `EUR/USD` trading research and simulation system. 
 
 ## Local Commands
 
+Requires Python 3.12 or newer.
+
 ```bash
-python3.13 -m pytest -v
-python3.13 -m streamlit run src/forex_trader/dashboard/app.py
+python -m pytest -v
+python -m streamlit run src/forex_trader/dashboard/app.py
 ```
 
-Install optional dashboard dependencies from `pyproject.toml` before running Streamlit.
+Install the project (and optional dashboard/dev extras) before running:
+
+```bash
+pip install -e ".[dev]"
+```
 

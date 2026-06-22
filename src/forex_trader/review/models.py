@@ -17,6 +17,7 @@ class TradeReview:
     risk_reason: str
     mistake_tags: list[str]
     improvement_hypothesis: str
+    summary: str = ""
     status: ReviewStatus = ReviewStatus.NEW
     notes: str = ""
     extra: dict[str, Any] = field(default_factory=dict)
