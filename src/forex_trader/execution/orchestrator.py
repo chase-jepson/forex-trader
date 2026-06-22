@@ -5,7 +5,11 @@ from datetime import datetime
 from forex_trader.broker.base import Broker
 from forex_trader.domain.models import Candle, ExecutionResult, Position, Quote, TradePlan, new_id
 from forex_trader.llm.explainer import explain_decision
-from forex_trader.market.sessions import must_close_position
+from forex_trader.market.sessions import (
+    DEFAULT_SESSION_TZ,
+    can_open_new_trade,
+    must_close_position,
+)
 from forex_trader.review.service import TradeReviewService
 from forex_trader.risk.policy import RiskPolicy
 from forex_trader.risk.sizing import calculate_units_for_risk
@@ -23,6 +27,9 @@ class ExecutionOrchestrator:
         repository: TradingRepository,
         equity: float,
         max_hold_minutes: int = 90,
+        session_start_local: str = "05:00",
+        session_end_local: str = "09:00",
+        session_tz: str = DEFAULT_SESSION_TZ,
     ) -> None:
         self.strategy = strategy
         self.risk_policy = risk_policy
@@ -30,7 +37,13 @@ class ExecutionOrchestrator:
         self.repository = repository
         self.equity = equity
         self.max_hold_minutes = max_hold_minutes
+        self.session_start_local = session_start_local
+        self.session_end_local = session_end_local
+        self.session_tz = session_tz
         self.review_service = TradeReviewService(repository)
+        # Running total of realized PnL for the current trading day. Feeds the
+        # risk policy's daily-loss cap. Reset via reset_daily_pnl().
+        self.daily_realized_pnl = 0.0
 
     def run_cycle(self, *, candles: list[Candle], quote: Quote, now: datetime) -> ExecutionResult:
         cycle_id = new_id("cycle")
@@ -44,6 +57,33 @@ class ExecutionOrchestrator:
                 {"explanation": explain_decision(None, None)},
             )
             return ExecutionResult(cycle_id=cycle_id, status="no_signal", reason="No signal.")
+
+        if not can_open_new_trade(
+            now,
+            self.session_start_local,
+            self.session_end_local,
+            self.session_tz,
+        ):
+            reason = "Outside the trading session window."
+            self.repository.save_cycle(
+                cycle_id,
+                now.isoformat(),
+                "blocked",
+                reason,
+                {"signal": signal.__dict__, "explanation": reason},
+            )
+            self.review_service.create_review(
+                trade_id=cycle_id,
+                outcome="blocked",
+                pnl=0.0,
+                market_context={"spread_pips": quote.spread_pips},
+                rule_snapshot={"strategy": signal.strategy_id, "reason": signal.reason},
+                risk_reason=reason,
+                mistake_tags=["outside_session"],
+            )
+            return ExecutionResult(
+                cycle_id=cycle_id, status="blocked", reason=reason, signal=signal
+            )
 
         units = calculate_units_for_risk(
             equity=self.equity,
@@ -64,6 +104,7 @@ class ExecutionOrchestrator:
             take_profit=signal.take_profit,
             risk_amount=plan.risk_amount,
             max_hold_minutes=plan.max_hold_minutes,
+            daily_realized_pnl=self.daily_realized_pnl,
         )
         explanation = explain_decision(signal, decision)
         if not decision.approved:
@@ -118,7 +159,7 @@ class ExecutionOrchestrator:
         self,
         *,
         now: datetime,
-        price: float,
+        price: float | None,
         session_end_local: str,
     ) -> list[Position]:
         closed: list[Position] = []
@@ -128,16 +169,26 @@ class ExecutionOrchestrator:
                 now,
                 self.max_hold_minutes,
                 session_end_local,
+                self.session_tz,
             ):
                 closed_position = self.broker.close_position(position.position_id, price, now)
                 closed.append(closed_position)
+                self.daily_realized_pnl += closed_position.realized_pnl
                 self.review_service.create_review(
                     trade_id=position.position_id,
-                    outcome="win" if closed_position.realized_pnl > 0 else "loss",
+                    outcome=_outcome_for_pnl(closed_position.realized_pnl),
                     pnl=closed_position.realized_pnl,
-                    market_context={"exit_price": price},
+                    market_context={"exit_price": closed_position.close_price},
                     rule_snapshot={"exit": "max_hold_or_session_cutoff"},
                     risk_reason="Forced close policy applied.",
                     mistake_tags=["time_exit"],
                 )
         return closed
+
+
+def _outcome_for_pnl(pnl: float) -> str:
+    if pnl > 0:
+        return "win"
+    if pnl < 0:
+        return "loss"
+    return "scratch"
