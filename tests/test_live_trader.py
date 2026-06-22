@@ -99,3 +99,24 @@ def test_run_loop_stops_early_on_emergency_stop(tmp_path):
 
     assert results[-1].status == "halted"
     assert len(results) == 1  # stopped after the halt
+
+
+def test_oanda_fetch_builds_candles_and_quote_from_broker():
+    # A fake broker that returns canned candles + quote; no network.
+    from forex_trader.execution.live import make_oanda_fetch
+
+    class _FakeFetchBroker:
+        def get_quote(self, symbol):
+            return Quote(symbol=symbol, bid=1.1000, ask=1.1002,
+                         time=datetime(2026, 6, 22, 12, 0, tzinfo=UTC))
+
+    def fake_candles():
+        now = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
+        return _candles(now)
+
+    fetch = make_oanda_fetch(broker=_FakeFetchBroker(), candle_source=fake_candles)
+    candles, quote, now = fetch()
+
+    assert len(candles) == 2
+    assert quote.symbol == "EUR_USD"
+    assert now == quote.time

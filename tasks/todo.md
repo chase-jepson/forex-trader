@@ -73,3 +73,15 @@ explicit opt-in flag.
 ## Verification (every chunk)
 - pytest -q (70 pass), ruff check . (clean), mypy src (strict, clean)
 - pytest -m integration (2 live OANDA read-only checks pass)
+
+## Phase A/B/C (this session — DONE, all green)
+- [x] A1 historical candle source (real OANDA fetch + offline fixture)
+- [x] A2 evidence report command (forex-trader evidence)
+- [x] B1 structured logging (no secrets) + B2 emergency stop
+- [x] B3 OANDA health check (verified live) + B4 reconciliation + B5 run-state
+- [x] C1 LiveTrader.tick (emergency/reconcile/dry-run/armed gates)
+- [x] C2 LiveTrader.run loop + gated 'live' CLI command
+- [x] C3 make_oanda_fetch + live-mode docs + README
+
+## STOP POINT (unchanged): the live loop is built & tested but NOT auto-armed.
+Running `forex-trader live --arm` against the account is the user's action.

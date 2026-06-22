@@ -38,12 +38,21 @@ Requires Python 3.12 or newer. Install first:
 pip install -e ".[dev]"
 ```
 
-Run a backtest (synthetic candles by default):
+Run a backtest, gather strategy evidence, or check status:
 
 ```bash
 forex-trader backtest --count 2000 --seed 42 --strategy opening_window
 forex-trader backtest --csv data/eurusd.csv --strategy mean_reversion
+forex-trader evidence --days 10 --seed 42   # backtests all strategies, writes a verdict report
 forex-trader status
+```
+
+Run the live practice loop (dry-run by default; never auto-armed — see
+[docs/live-mode.md](docs/live-mode.md) for the safety model and checklist):
+
+```bash
+forex-trader live --max-iterations 5                                   # dry run, no orders
+forex-trader live --arm --i-understand-this-places-orders              # places demo orders
 ```
 
 Tests, dashboard, and live OANDA checks:

@@ -19,6 +19,25 @@ from forex_trader.strategy.base import Strategy
 logger = get_logger("live")
 
 
+def make_oanda_fetch(
+    *,
+    broker: object,
+    candle_source: Callable[[], list[Candle]],
+) -> Callable[[], tuple[list[Candle], Quote, datetime]]:
+    """Build a fetch() that pulls a live quote from the broker and recent
+    candles from `candle_source` (e.g. fetch_oanda_candles bound to creds).
+
+    Returns (candles, quote, now) where now is the quote's timestamp.
+    """
+
+    def fetch() -> tuple[list[Candle], Quote, datetime]:
+        quote = broker.get_quote("EUR_USD")  # type: ignore[attr-defined]
+        candles = candle_source()
+        return candles, quote, quote.time
+
+    return fetch
+
+
 @dataclass(frozen=True)
 class TickResult:
     status: str  # halted | out_of_sync | dry_run | ordered | blocked | no_signal
