@@ -30,14 +30,20 @@ def _env_float(name: str, default: float) -> float:
     value = os.getenv(name)
     if value is None or value == "":
         return default
-    return float(value)
+    try:
+        return float(value)
+    except ValueError:
+        raise ValueError(f"Config error: {name}={value!r} is not a valid number.") from None
 
 
 def _env_int(name: str, default: int) -> int:
     value = os.getenv(name)
     if value is None or value == "":
         return default
-    return int(value)
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"Config error: {name}={value!r} is not a valid integer.") from None
 
 
 def _env_bool(name: str, default: bool) -> bool:

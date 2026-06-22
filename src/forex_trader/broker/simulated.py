@@ -111,7 +111,9 @@ class SimulatedBroker(Broker):
         # buying (pay ask). Resolve the exit price accordingly.
         exit_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
         exit_price = self._fill_price(exit_side, price)
-        return position.close(price=exit_price, closed_at=closed_at or datetime.now(UTC))
+        closed = position.close(price=exit_price, closed_at=closed_at or datetime.now(UTC))
+        self._positions[position_id] = closed
+        return closed
 
     def close_position_at(
         self,
@@ -125,4 +127,6 @@ class SimulatedBroker(Broker):
         the realistic execution price and applying a spread would double-count.
         """
         position = self._positions[position_id]
-        return position.close(price=exact_price, closed_at=closed_at or datetime.now(UTC))
+        closed = position.close(price=exact_price, closed_at=closed_at or datetime.now(UTC))
+        self._positions[position_id] = closed
+        return closed

@@ -42,9 +42,23 @@ class ExecutionOrchestrator:
         self.session_end_local = session_end_local
         self.session_tz = session_tz
         self.review_service = TradeReviewService(repository)
-        # Running total of realized PnL for the current trading day. Feeds the
-        # risk policy's daily-loss cap. Reset via reset_daily_pnl().
+        # Realized PnL for the current trading day; feeds the daily-loss cap and
+        # is reset at each day boundary via reset_daily_pnl().
         self.daily_realized_pnl = 0.0
+        # Realized PnL across the whole run; never reset, feeds the equity curve.
+        self.cumulative_realized_pnl = 0.0
+
+    def reset_daily_pnl(self) -> None:
+        """Clear the daily PnL bucket at a trading-day boundary.
+
+        The daily-loss cap is a *per-day* limit, so a loss on one day must not
+        carry forward and permanently block trading on later days.
+        """
+        self.daily_realized_pnl = 0.0
+
+    def _record_realized_pnl(self, pnl: float) -> None:
+        self.daily_realized_pnl += pnl
+        self.cumulative_realized_pnl += pnl
 
     def run_cycle(self, *, candles: list[Candle], quote: Quote, now: datetime) -> ExecutionResult:
         cycle_id = new_id("cycle")
@@ -174,7 +188,7 @@ class ExecutionOrchestrator:
             ):
                 closed_position = self.broker.close_position(position.position_id, price, now)
                 closed.append(closed_position)
-                self.daily_realized_pnl += closed_position.realized_pnl
+                self._record_realized_pnl(closed_position.realized_pnl)
                 self.review_service.create_review(
                     trade_id=position.position_id,
                     outcome=_outcome_for_pnl(closed_position.realized_pnl),
@@ -205,7 +219,7 @@ class ExecutionOrchestrator:
                 continue
             closed_position = self._close_at(position.position_id, hit_price, now)
             closed.append(closed_position)
-            self.daily_realized_pnl += closed_position.realized_pnl
+            self._record_realized_pnl(closed_position.realized_pnl)
             exit_kind = "stop_loss" if hit_price == position.stop_loss else "take_profit"
             self.review_service.create_review(
                 trade_id=position.position_id,

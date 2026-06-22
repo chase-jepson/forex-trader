@@ -18,5 +18,11 @@ def calculate_units_for_risk(
         raise ValueError("stop_loss_pips must be positive")
     risk_amount = equity * max_risk_fraction
     risk_per_unit = stop_loss_pips * pip_value_per_unit
-    return int(risk_amount / risk_per_unit)
+    units = int(risk_amount / risk_per_unit)
+    if units <= 0:
+        raise ValueError(
+            f"Calculated 0 units for equity={equity}, risk_fraction={max_risk_fraction}, "
+            f"stop_pips={stop_loss_pips}. Widen the stop or increase equity."
+        )
+    return units
 

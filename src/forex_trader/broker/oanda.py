@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from typing import Any, cast
-from urllib import request
+from urllib import error, request
 
 from forex_trader.broker.base import Broker
 from forex_trader.domain.enums import OrderSide, PositionStatus
@@ -40,8 +40,18 @@ class OandaBroker(Broker):
                 "Content-Type": "application/json",
             },
         )
-        with request.urlopen(req, timeout=10) as response:  # noqa: S310 - user-supplied broker URL is not accepted
-            decoded = json.loads(response.read().decode("utf-8"))
+        try:
+            with request.urlopen(req, timeout=10) as response:  # noqa: S310 - fixed OANDA host
+                decoded = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"OANDA {method} {path} failed: HTTP {exc.code} {detail}"
+            ) from exc
+        except error.URLError as exc:
+            raise RuntimeError(
+                f"OANDA {method} {path} network error: {exc.reason}"
+            ) from exc
         return cast(dict[str, Any], decoded)
 
     def get_quote(self, symbol: str) -> Quote:
@@ -99,6 +109,16 @@ class OandaBroker(Broker):
         )
 
     def list_open_positions(self) -> list[Position]:
+        """List open positions from OANDA.
+
+        Note: the /openPositions endpoint does not return stop-loss,
+        take-profit, or the original open time (those live on attached orders /
+        the trades endpoint). Those fields are therefore left at 0.0 / now().
+        This is sufficient for the orchestrator's open-position COUNT, but
+        time-based forced-close via close_expired_positions is NOT reliable for
+        OANDA-sourced positions and must not be depended on in live mode without
+        first enriching from /v3/accounts/{id}/trades.
+        """
         data = self._request("GET", f"/v3/accounts/{self.account_id}/openPositions")
         positions: list[Position] = []
         for item in data.get("positions", []):
@@ -142,13 +162,14 @@ class OandaBroker(Broker):
         )
         long_fill = data.get("longOrderFillTransaction")
         short_fill = data.get("shortOrderFillTransaction")
-        # A long position is closed by a sell fill, a short by a buy fill.
+        # A longOrderFillTransaction means the LONG side was closed, so the
+        # original position was a BUY (closed by a sell fill); likewise short.
         if long_fill is not None:
             fill = long_fill
-            closed_side = OrderSide.BUY
+            original_side = OrderSide.BUY
         elif short_fill is not None:
             fill = short_fill
-            closed_side = OrderSide.SELL
+            original_side = OrderSide.SELL
         else:
             raise ValueError(f"OANDA close for {position_id} returned no fill transaction.")
         if price is None and "price" not in fill:
@@ -159,7 +180,7 @@ class OandaBroker(Broker):
         position = Position(
             position_id=position_id,
             symbol=position_id,
-            side=closed_side,
+            side=original_side,
             units=units,
             entry_price=close_price,
             stop_loss=0.0,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -100,7 +100,7 @@ class OrderResult:
     opened_at: datetime
 
 
-@dataclass
+@dataclass(frozen=True)
 class Position:
     position_id: str
     symbol: str
@@ -121,9 +121,7 @@ class Position:
         closed_at: datetime | None = None,
         cost: float = 0.0,
     ) -> Position:
-        self.closed_at = closed_at or datetime.now(UTC)
-        self.close_price = price
-        self.status = PositionStatus.CLOSED
+        """Return a new CLOSED position; the original is left unchanged."""
         if self.side == OrderSide.BUY:
             move = price - self.entry_price
         else:
@@ -131,8 +129,14 @@ class Position:
         pips = move / PIP_SIZE
         # Single shared pip-value model: PnL = pips * units * value-per-pip-per-unit.
         # Matches the assumption position sizing uses, so risk and PnL reconcile.
-        self.realized_pnl = pips * self.units * PIP_VALUE_PER_UNIT - cost
-        return self
+        realized_pnl = pips * self.units * PIP_VALUE_PER_UNIT - cost
+        return replace(
+            self,
+            status=PositionStatus.CLOSED,
+            close_price=price,
+            closed_at=closed_at or datetime.now(UTC),
+            realized_pnl=realized_pnl,
+        )
 
 
 @dataclass(frozen=True)

@@ -56,3 +56,36 @@ def test_pip_value_constant_is_shared_between_sizing_and_pnl():
     )
     closed = position.close(price=one_pip_up)
     assert round(closed.realized_pnl, 8) == round(units * PIP_VALUE_PER_UNIT, 8)
+
+
+def test_position_close_does_not_mutate_original():
+    from datetime import UTC, datetime
+
+    from forex_trader.domain.enums import OrderSide, PositionStatus
+    from forex_trader.domain.models import Position
+
+    original = Position(
+        position_id="p", symbol="EUR_USD", side=OrderSide.BUY, units=1000,
+        entry_price=1.1000, stop_loss=1.0990, take_profit=1.1020,
+        opened_at=datetime(2026, 6, 22, 12, 0, tzinfo=UTC),
+    )
+
+    closed = original.close(price=1.1010)
+
+    # Original is untouched; close returns a new closed instance.
+    assert original.status == PositionStatus.OPEN
+    assert original.close_price is None
+    assert closed.status == PositionStatus.CLOSED
+    assert closed is not original
+
+
+def test_zero_unit_sizing_is_rejected():
+    import pytest
+
+    from forex_trader.risk.sizing import calculate_units_for_risk
+
+    # Tiny equity with a wide stop rounds to 0 units -> must raise, not no-op.
+    with pytest.raises(ValueError, match="0 units"):
+        calculate_units_for_risk(
+            equity=1.0, max_risk_fraction=0.0001, stop_loss_pips=100.0
+        )

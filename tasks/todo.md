@@ -34,13 +34,25 @@ strategy research). Run until clear work is exhausted. Commit per chunk, no push
 
 ## Phase 4 — OANDA practice (Direction 2)
 - [x] Real position read-back with correct fields
-- [x] Real close with correct side/units/pnl
-- [x] Live pricing loop wiring
+- [x] Real close with correct side/units/pnl (OANDA's authoritative pl)
+- [x] Read-only credential-gated integration test (verified live against demo)
+- [ ] Live run loop (poll pricing -> run_cycle -> place practice orders)
 
 ## Phase 5 — Strategy research (Direction 4)
 - [x] eurusd_mean_reversion strategy
-- [x] eurusd_news_avoidance filter
+- [x] news_avoidance filter
 - [x] strategy comparison framework
+
+## Phase 6 — Usability (added)
+- [x] CLI entry point (backtest + status)
+- [x] Dashboard reads real persisted data
+- [x] Docs updated (README + backtesting.md)
+
+## Remaining — needs user sign-off (places real practice orders)
+- [ ] Live run loop: the order-PLACING path against OANDA practice. Read-only
+      half is done & verified. Deferred because it actually transacts.
+- [ ] Promoting a draft strategy to ready_for_sim is a RESEARCH decision
+      (needs evidence), not a coding task — left to the user by design.
 
 ## Verification (every chunk)
 - pytest -q, ruff check ., mypy src — all green before commit

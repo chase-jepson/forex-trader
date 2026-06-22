@@ -85,10 +85,17 @@ def run_backtest(
 
         equity_curve = [starting_equity]
         half_spread = half_spread_pips * PIP_SIZE
+        prev_date = candles[0].time.date() if candles else None
 
         for index in range(1, len(candles)):
             window = candles[max(0, index - window_size) : index + 1]
             current = candles[index]
+
+            # The daily-loss cap is per day; reset the daily bucket at each
+            # calendar-day boundary so one bad day cannot block later days.
+            if current.time.date() != prev_date:
+                orchestrator.reset_daily_pnl()
+                prev_date = current.time.date()
             quote = Quote(
                 symbol="EUR_USD",
                 bid=current.close - half_spread,
@@ -105,7 +112,9 @@ def run_backtest(
                 session_end_local=session_end_local,
             )
             orchestrator.run_cycle(candles=window, quote=quote, now=current.time)
-            equity_curve.append(starting_equity + orchestrator.daily_realized_pnl)
+            # Equity tracks cumulative PnL across the whole run, not the daily
+            # bucket (which resets at day boundaries).
+            equity_curve.append(starting_equity + orchestrator.cumulative_realized_pnl)
 
         reviews = repository.list_reviews()
 
