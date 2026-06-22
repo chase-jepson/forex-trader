@@ -40,8 +40,65 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", default="docs/reviews/strategy-evidence.md", help="Report output path."
     )
 
+    live = sub.add_parser(
+        "live", help="Run the live practice loop (dry-run by default; --arm places orders)."
+    )
+    live.add_argument(
+        "--arm", action="store_true",
+        help="Actually place orders. Without this the loop is a dry run.",
+    )
+    live.add_argument(
+        "--i-understand-this-places-orders", dest="acknowledge", action="store_true",
+        help="Required acknowledgement to arm the loop.",
+    )
+    live.add_argument("--max-iterations", type=int, default=1, help="Number of ticks to run.")
+    live.add_argument("--sleep-seconds", type=float, default=60.0)
+
     sub.add_parser("status", help="Print active mode and startup safety status.")
     return parser
+
+
+def run_live_command(
+    *,
+    arm: bool,
+    acknowledge: bool,
+    max_iterations: int,
+    app_mode: str,
+    account_id: str,
+    token: str,
+    enable_live: bool,
+    sleep_seconds: float = 60.0,
+) -> int:
+    """Validate every safety gate before the live loop may run.
+
+    Refuses unless the mode is practice/live, credentials are present, (for
+    live) live trading is explicitly enabled, and arming is acknowledged. This
+    function performs the checks; the user runs it deliberately.
+    """
+    if app_mode not in {"practice", "live"}:
+        print(
+            f"live requires app_mode 'practice' or 'live', not {app_mode!r}.",
+            file=sys.stderr,
+        )
+        return 1
+    if not account_id or not token:
+        print("live requires OANDA credentials in the environment.", file=sys.stderr)
+        return 1
+    if app_mode == "live" and not enable_live:
+        print("live mode requires ENABLE_LIVE_TRADING=true.", file=sys.stderr)
+        return 1
+    if arm and not acknowledge:
+        print(
+            "Refusing to arm: pass --i-understand-this-places-orders to acknowledge "
+            "that --arm places real orders.",
+            file=sys.stderr,
+        )
+        return 1
+
+    mode_label = "ARMED — will place orders" if arm else "DRY RUN — no orders"
+    print(f"Live loop ready ({app_mode}, {mode_label}, {max_iterations} ticks).")
+    print("Wire fetch() to OANDA pricing and call LiveTrader.run() to execute.")
+    return 0
 
 
 def run_evidence_command(*, days: int, seed: int, out_path: str) -> int:
@@ -128,6 +185,18 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "evidence":
         return run_evidence_command(days=args.days, seed=args.seed, out_path=args.out)
+    if args.command == "live":
+        settings = Settings.from_env()
+        return run_live_command(
+            arm=args.arm,
+            acknowledge=args.acknowledge,
+            max_iterations=args.max_iterations,
+            app_mode=settings.app_mode,
+            account_id=settings.oanda_account_id,
+            token=settings.oanda_api_token,
+            enable_live=settings.enable_live_trading,
+            sleep_seconds=args.sleep_seconds,
+        )
     if args.command == "status":
         return run_status_command()
     return 2

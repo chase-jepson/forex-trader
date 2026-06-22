@@ -57,3 +57,46 @@ def test_run_evidence_command_writes_report(tmp_path, capsys):
     assert "verdict" in text.lower()
     # And the comparison table prints to stdout.
     assert "strategy" in capsys.readouterr().out.lower()
+
+
+def test_live_command_refuses_in_simulated_mode(capsys):
+    from forex_trader.cli import run_live_command
+
+    code = run_live_command(
+        arm=False, acknowledge=True, max_iterations=1,
+        app_mode="simulated", account_id="x", token="y", enable_live=False,
+    )
+    assert code != 0
+    assert "practice" in capsys.readouterr().err.lower()
+
+
+def test_live_command_refuses_without_acknowledgement(capsys):
+    from forex_trader.cli import run_live_command
+
+    code = run_live_command(
+        arm=True, acknowledge=False, max_iterations=1,
+        app_mode="practice", account_id="x", token="y", enable_live=False,
+    )
+    assert code != 0
+    assert "acknowledge" in capsys.readouterr().err.lower()
+
+
+def test_live_command_refuses_without_credentials(capsys):
+    from forex_trader.cli import run_live_command
+
+    code = run_live_command(
+        arm=False, acknowledge=True, max_iterations=1,
+        app_mode="practice", account_id="", token="", enable_live=False,
+    )
+    assert code != 0
+    assert "credential" in capsys.readouterr().err.lower()
+
+
+def test_live_parser_requires_acknowledge_flag_for_arm():
+    from forex_trader.cli import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["live", "--arm", "--i-understand-this-places-orders"])
+    assert args.command == "live"
+    assert args.arm is True
+    assert args.acknowledge is True

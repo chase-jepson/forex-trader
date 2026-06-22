@@ -66,3 +66,36 @@ def test_armed_tick_places_order_on_valid_signal(tmp_path):
 
 def _q(now):
     return Quote(symbol="EUR_USD", bid=1.1014, ask=1.1016, time=now)
+
+
+def test_run_loop_executes_bounded_iterations(tmp_path):
+    broker = SimulatedBroker()
+    trader = _trader(tmp_path, broker, armed=False)
+    now = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
+    calls = []
+
+    def feed():
+        calls.append(1)
+        return _candles(now), _q(now), now
+
+    results = trader.run(max_iterations=3, sleep_seconds=0, fetch=feed)
+
+    assert len(results) == 3
+    assert len(calls) == 3
+    assert all(r.status == "dry_run" for r in results)
+
+
+def test_run_loop_stops_early_on_emergency_stop(tmp_path):
+    stop = tmp_path / "STOP"
+    broker = SimulatedBroker()
+    trader = _trader(tmp_path, broker, armed=True, stop_path=stop)
+    now = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
+
+    def feed():
+        stop.write_text("halt")  # trip stop on first fetch
+        return _candles(now), _q(now), now
+
+    results = trader.run(max_iterations=5, sleep_seconds=0, fetch=feed)
+
+    assert results[-1].status == "halted"
+    assert len(results) == 1  # stopped after the halt

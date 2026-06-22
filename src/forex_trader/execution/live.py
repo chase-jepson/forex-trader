@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -91,3 +93,28 @@ class LiveTrader:
         result = self.orchestrator.run_cycle(candles=candles, quote=quote, now=now)
         logger.info("Armed tick: %s — %s", result.status, result.reason)
         return TickResult(status=result.status, reason=result.reason)
+
+    def run(
+        self,
+        *,
+        max_iterations: int,
+        sleep_seconds: float,
+        fetch: Callable[[], tuple[list[Candle], Quote, datetime]],
+    ) -> list[TickResult]:
+        """Tick on an interval up to `max_iterations`, stopping on a halt.
+
+        `fetch` returns the (candles, quote, now) for each tick — production
+        wires this to OANDA pricing; tests inject deterministic data. The
+        max-iterations guard means the loop can never run unbounded.
+        """
+        results: list[TickResult] = []
+        for iteration in range(max_iterations):
+            candles, quote, now = fetch()
+            result = self.tick(candles=candles, quote=quote, now=now)
+            results.append(result)
+            if result.status == "halted":
+                logger.warning("Loop stopping: emergency stop encountered.")
+                break
+            if iteration < max_iterations - 1 and sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+        return results
