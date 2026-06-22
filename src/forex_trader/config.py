@@ -35,6 +35,7 @@ class Settings:
     max_hold_minutes: int = _env_int("MAX_HOLD_MINUTES", 90)
     session_start_local: str = os.getenv("SESSION_START_LOCAL", "05:00")
     session_end_local: str = os.getenv("SESSION_END_LOCAL", "09:00")
+    session_tz: str = os.getenv("SESSION_TZ", "America/Mexico_City")
     database_path: str = os.getenv("DATABASE_PATH", "data/forex-trader.db")
     dashboard_refresh_seconds: int = _env_int("DASHBOARD_REFRESH_SECONDS", 5)
     enable_live_trading: bool = _env_bool("ENABLE_LIVE_TRADING", False)
