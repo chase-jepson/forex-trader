@@ -54,5 +54,22 @@ strategy research). Run until clear work is exhausted. Commit per chunk, no push
 - [ ] Promoting a draft strategy to ready_for_sim is a RESEARCH decision
       (needs evidence), not a coding task — left to the user by design.
 
+## Phase 7 — Review hardening (added, done)
+- [x] CRITICAL: per-day daily-loss reset (was poisoning multi-day backtests)
+- [x] HIGH: Position frozen, close() returns new instance (immutability)
+- [x] HIGH: OANDA _request wraps HTTP/URL errors
+- [x] HIGH: OANDA close side rename + read-back limitation documented
+- [x] MEDIUM: sizing rejects 0-unit orders
+- [x] MEDIUM: config clear errors on malformed env values
+- [x] LOW: db.connect commits + always closes (FD leak)
+
+## STOPPED HERE — needs your sign-off
+The only remaining work is the live run loop that PLACES practice orders on a
+schedule. It transacts against the real OANDA demo account, so per the
+high-stakes rule I did not build it autonomously. Read-only OANDA is done and
+verified live. Say the word and I'll build the order-placing loop behind an
+explicit opt-in flag.
+
 ## Verification (every chunk)
-- pytest -q, ruff check ., mypy src — all green before commit
+- pytest -q (70 pass), ruff check . (clean), mypy src (strict, clean)
+- pytest -m integration (2 live OANDA read-only checks pass)
