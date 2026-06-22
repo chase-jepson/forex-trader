@@ -15,6 +15,9 @@ dependencies = [
   "streamlit>=1.39",
 ]
 
+[project.scripts]
+forex-trader = "forex_trader.cli:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3",
