@@ -53,3 +53,14 @@ tracking pre-entry that made it expect success → follow it through to close.
 - [ ] H1 expand live-loop test coverage
 - [ ] H2/H3 bug-hunt sweep + docs (how to view dashboard, explorer guide)
 - [ ] Equity-curve chart on the reports section
+
+## FINDING (needs user decision — not auto-fixed)
+Reconciliation in LiveTrader is effectively a no-op as wired: it compares
+`self.orchestrator.broker.list_open_positions()` (expected) against
+`self.broker.list_open_positions()` (actual) — but both are the SAME broker, so
+they can never disagree. To genuinely detect account drift, the loop must track
+locally-expected open positions separately from what the broker reports. That's
+a design change to how live state is tracked (matters because it gates real
+orders), so leaving it for the user rather than silently reworking. Today the
+risk engine's max-open-position check still prevents over-trading, so this is a
+latent gap, not an active danger in dry-run.
