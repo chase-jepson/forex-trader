@@ -53,3 +53,8 @@ python_version = "3.12"
 strict = true
 files = ["src"]
 
+# plotly ships no type stubs; treat its imports as untyped rather than failing.
+[[tool.mypy.overrides]]
+module = ["plotly.*"]
+ignore_missing_imports = true
+
