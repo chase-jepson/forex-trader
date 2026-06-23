@@ -71,6 +71,10 @@ def run_backtest(
         max_open_positions=max_open_positions,
     )
     active_strategy = strategy or EurUsdOpeningWindowStrategy()
+    # Size the window to cover the strategy's history requirement so a strategy
+    # like mean reversion (lookback+1 closes) always receives enough candles.
+    required = getattr(active_strategy, "required_history", 2)
+    window_size = max(window_size, required)
 
     if repository is not None:
         return _run_into_repository(

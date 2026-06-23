@@ -27,6 +27,8 @@ class EurUsdMeanReversionStrategy(Strategy):
         self.deviation_pips = deviation_pips
         self.max_spread_pips = max_spread_pips
         self.stop_buffer_pips = stop_buffer_pips
+        # Needs `lookback` prior closes plus the latest candle.
+        self.required_history = lookback + 1
 
     def evaluate(self, candles: list[Candle], quote: Quote | None) -> Signal | None:
         if quote is None or len(candles) <= self.lookback:
