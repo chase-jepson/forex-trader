@@ -120,3 +120,28 @@ def test_oanda_fetch_builds_candles_and_quote_from_broker():
     assert len(candles) == 2
     assert quote.symbol == "EUR_USD"
     assert now == quote.time
+
+
+def test_dry_run_persists_would_have_traded_record(tmp_path):
+    from forex_trader.storage.repositories import TradingRepository
+
+    repo = TradingRepository(tmp_path / "live.db")
+    broker = SimulatedBroker()
+    trader = LiveTrader(
+        strategy=EurUsdOpeningWindowStrategy(max_spread_pips=2.0),
+        risk_policy=RiskPolicy(0.0025, 0.01, 1),
+        broker=broker,
+        repository=repo,
+        equity=10_000,
+        armed=False,
+        emergency_stop_path=str(tmp_path / "NOSTOP"),
+        session_start_local="00:00", session_end_local="23:59", session_tz="UTC",
+    )
+    now = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
+
+    trader.tick(candles=_candles(now), quote=_q(now), now=now)
+
+    stories = repo.list_trade_stories()
+    assert len(stories) == 1
+    assert stories[0]["is_dry_run"] is True
+    assert not broker.list_open_positions()  # still placed nothing

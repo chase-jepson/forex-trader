@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from forex_trader.broker.base import Broker
-from forex_trader.domain.models import Candle, Quote
+from forex_trader.domain.models import Candle, Quote, Signal
 from forex_trader.execution.orchestrator import ExecutionOrchestrator
 from forex_trader.execution.reconcile import reconcile_positions
 from forex_trader.market.sessions import DEFAULT_SESSION_TZ
@@ -162,6 +162,8 @@ class LiveTrader:
             # Evaluate the signal but place nothing. The orchestrator's risk
             # engine is never reached, so a dry run cannot move the account.
             signal = self.strategy.evaluate(candles, quote)
+            if signal is not None:
+                self._persist_dry_run(signal, candles, now)
             detail = "signal present" if signal else "no signal"
             logger.info("Dry run tick: %s (no orders placed).", detail)
             return TickResult(status="dry_run", reason=f"Dry run — {detail}.")
@@ -169,6 +171,35 @@ class LiveTrader:
         result = self.orchestrator.run_cycle(candles=candles, quote=quote, now=now)
         logger.info("Armed tick: %s — %s", result.status, result.reason)
         return TickResult(status=result.status, reason=result.reason)
+
+    def _persist_dry_run(self, signal: Signal, candles: list[Candle], now: datetime) -> None:
+        """Record a would-have-traded observation so dry-run evidence accrues.
+
+        Marked is_dry_run so the dashboard distinguishes it from real trades; no
+        order is placed and the risk engine is not invoked.
+        """
+        from forex_trader.domain.models import new_id
+
+        self.orchestrator.repository.open_trade_story(
+            position_id=new_id("dry"),
+            opened_at=now.isoformat(),
+            side=str(signal.side),
+            entry_price=signal.entry_price,
+            stop_loss=signal.stop_loss,
+            take_profit=signal.take_profit,
+            units=0,
+            signal_reason=signal.reason,
+            signal_metadata=dict(signal.metadata),
+            risk_reason="Dry run — not submitted to the risk engine.",
+            context_candles=[
+                {
+                    "time": c.time.isoformat(),
+                    "open": c.open, "high": c.high, "low": c.low, "close": c.close,
+                }
+                for c in candles
+            ],
+            is_dry_run=True,
+        )
 
     def run(
         self,
