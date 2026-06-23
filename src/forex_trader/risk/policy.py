@@ -34,7 +34,10 @@ class RiskPolicy:
         if risk_amount > max_risk_amount:
             percent = self.max_risk_per_trade * 100
             return RiskDecision(False, f"Risk exceeds {percent:.2f}% per-trade limit.")
-        if daily_realized_pnl < 0 and abs(daily_realized_pnl) >= equity * self.max_daily_loss:
-            return RiskDecision(False, "Daily loss limit reached.")
+        # A cap of 0 (or less) disables the daily-loss limit entirely — useful
+        # while learning on a demo account. Any positive value is enforced.
+        if self.max_daily_loss > 0 and daily_realized_pnl < 0:
+            if abs(daily_realized_pnl) >= equity * self.max_daily_loss:
+                return RiskDecision(False, "Daily loss limit reached.")
         return RiskDecision(True, "Approved: trade is within risk policy.")
 

@@ -58,7 +58,7 @@ class Settings:
     app_mode: str = "simulated"
     trade_symbol: str = "EUR_USD"
     max_risk_per_trade: float = 0.0025
-    max_daily_loss: float = 0.01
+    max_daily_loss: float = 0.10  # 10% daily-loss cap; set 0 to disable
     max_open_positions: int = 1
     max_hold_minutes: int = 90
     session_start_local: str = "05:00"
