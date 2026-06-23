@@ -60,8 +60,13 @@ Tests, dashboard, and live OANDA checks:
 ```bash
 python -m pytest -v                       # hermetic suite (no network)
 python -m pytest -m integration           # live OANDA practice checks (needs .env creds)
+forex-trader seed                         # populate the dashboard with backtest data
 python -m streamlit run src/forex_trader/dashboard/app.py
 ```
+
+The dashboard (Trade Explorer, reviews, equity curve) is documented in
+[docs/dashboard.md](docs/dashboard.md) — click any trade to see its chart and
+the reasoning behind it.
 
 ## Configuration
 
