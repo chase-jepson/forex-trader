@@ -5,6 +5,7 @@ from datetime import datetime
 from forex_trader.backtest.compare import compare_strategies, format_comparison
 from forex_trader.backtest.history import realistic_session_candles
 from forex_trader.backtest.runner import BacktestResult
+from forex_trader.domain.models import Candle
 from forex_trader.strategy.base import Strategy
 from forex_trader.strategy.eurusd_mean_reversion import EurUsdMeanReversionStrategy
 from forex_trader.strategy.eurusd_opening_window import EurUsdOpeningWindowStrategy
@@ -40,10 +41,17 @@ def verdict_for(result: BacktestResult) -> str:
     return "no edge on this fixture"
 
 
-def build_evidence_report(*, days: int, seed: int) -> tuple[dict[str, BacktestResult], str]:
-    """Run all strategies over the realistic fixture and render a report."""
-    start = datetime.fromisoformat("2026-06-01T00:00:00+00:00")
-    candles = realistic_session_candles(start=start, days=days, seed=seed)
+def build_evidence_report(
+    *, days: int, seed: int, candles: list[Candle] | None = None, source_label: str | None = None
+) -> tuple[dict[str, BacktestResult], str]:
+    """Run all strategies over the given candles (or the fixture) and report."""
+    if candles is None:
+        start = datetime.fromisoformat("2026-06-01T00:00:00+00:00")
+        candles = realistic_session_candles(start=start, days=days, seed=seed)
+        source_label = (
+            f"realistic offline fixture ({days} days, seed {seed}) — NOT real market data"
+        )
+    label = source_label or f"{len(candles)} candles"
     table = compare_strategies(
         candles=candles,
         strategies=_evidence_strategies(),
@@ -55,8 +63,7 @@ def build_evidence_report(*, days: int, seed: int) -> tuple[dict[str, BacktestRe
     lines = [
         "# Strategy Evidence Report",
         "",
-        f"Source: realistic offline fixture ({days} days, seed {seed}). "
-        "This is NOT real market data — it screens strategies before testing on real history.",
+        f"Source: {label}.",
         "",
         "```",
         format_comparison(table),

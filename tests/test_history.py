@@ -59,3 +59,23 @@ def test_realistic_session_candles_have_valid_ohlc():
     for c in candles:
         assert c.high >= max(c.open, c.close)
         assert c.low <= min(c.open, c.close)
+
+
+def test_candle_source_uses_fixture_when_not_real():
+    from forex_trader.backtest.history import resolve_candle_source
+
+    candles = resolve_candle_source(
+        use_real=False, token="", days=2, seed=1, granularity="M5", count=500,
+    )
+    assert len(candles) > 0  # fixture generated, no network
+
+
+def test_candle_source_real_requires_token():
+    import pytest
+
+    from forex_trader.backtest.history import resolve_candle_source
+
+    with pytest.raises(ValueError, match="token"):
+        resolve_candle_source(
+            use_real=True, token="", days=2, seed=1, granularity="M5", count=500,
+        )

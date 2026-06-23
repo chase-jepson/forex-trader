@@ -59,6 +59,31 @@ def fetch_oanda_candles(
     return parse_oanda_candles(payload)
 
 
+def resolve_candle_source(
+    *,
+    use_real: bool,
+    token: str,
+    days: int,
+    seed: int,
+    granularity: str = "M5",
+    count: int = 5000,
+) -> list[Candle]:
+    """Return candles for a backtest: real OANDA history or the offline fixture.
+
+    With `use_real`, fetches real EUR/USD candles from OANDA (requires a token).
+    Otherwise generates the deterministic offline fixture.
+    """
+    if use_real:
+        if not token:
+            raise ValueError("Real candles require an OANDA token (set OANDA_API_TOKEN).")
+        return fetch_oanda_candles(token=token, count=count, granularity=granularity)
+    from datetime import datetime
+
+    return realistic_session_candles(
+        start=datetime.fromisoformat("2026-06-01T00:00:00+00:00"), days=days, seed=seed
+    )
+
+
 def realistic_session_candles(
     *,
     start: datetime,

@@ -42,6 +42,10 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument(
         "--out", default="docs/reviews/strategy-evidence.md", help="Report output path."
     )
+    ev.add_argument("--real", action="store_true",
+                    help="Use real OANDA EUR/USD history instead of the fixture.")
+    ev.add_argument("--granularity", default="M5", help="Real-candle granularity.")
+    ev.add_argument("--count", type=int, default=5000, help="Real-candle count.")
 
     live = sub.add_parser(
         "live", help="Run the live practice loop (dry-run by default; --arm places orders)."
@@ -63,24 +67,41 @@ def build_parser() -> argparse.ArgumentParser:
     sd.add_argument("--db", help="Database path (defaults to DATABASE_PATH).")
     sd.add_argument("--days", type=int, default=10, help="Fixture length in days.")
     sd.add_argument("--seed", type=int, default=42, help="Fixture random seed.")
+    sd.add_argument("--real", action="store_true",
+                    help="Use real OANDA EUR/USD history instead of the fixture.")
+    sd.add_argument("--granularity", default="M5", help="Real-candle granularity (M5, M15, H1...).")
+    sd.add_argument("--count", type=int, default=5000, help="Real-candle count (max 5000/request).")
 
     sub.add_parser("status", help="Print active mode and startup safety status.")
     return parser
 
 
-def run_seed_command(*, db_path: str | None = None, days: int = 10, seed: int = 42) -> int:
-    from datetime import datetime
-
-    from forex_trader.backtest.history import realistic_session_candles
+def run_seed_command(
+    *,
+    db_path: str | None = None,
+    days: int = 10,
+    seed: int = 42,
+    use_real: bool = False,
+    granularity: str = "M5",
+    count: int = 5000,
+) -> int:
+    from forex_trader.backtest.history import resolve_candle_source
     from forex_trader.storage.repositories import TradingRepository
 
     settings = Settings.from_env()
     path = db_path or settings.database_path
     repository = TradingRepository(path)
     repository.clear_all()  # start from a clean slate for a fresh dashboard
-    candles = realistic_session_candles(
-        start=datetime.fromisoformat("2026-06-01T00:00:00+00:00"), days=days, seed=seed
-    )
+    try:
+        candles = resolve_candle_source(
+            use_real=use_real, token=settings.oanda_api_token, days=days, seed=seed,
+            granularity=granularity, count=count,
+        )
+    except (ValueError, RuntimeError) as exc:
+        print(f"Could not load candles: {exc}", file=sys.stderr)
+        return 1
+    source = f"real OANDA {granularity}" if use_real else "offline fixture"
+    print(f"Loaded {len(candles)} candles ({source}).")
     result = run_backtest(
         candles=candles,
         repository=repository,
@@ -173,12 +194,40 @@ def run_live_command(
     return 0
 
 
-def run_evidence_command(*, days: int, seed: int, out_path: str) -> int:
+def run_evidence_command(
+    *,
+    days: int,
+    seed: int,
+    out_path: str,
+    use_real: bool = False,
+    granularity: str = "M5",
+    count: int = 5000,
+) -> int:
     from pathlib import Path
 
     from forex_trader.backtest.evidence import build_evidence_report
+    from forex_trader.backtest.history import resolve_candle_source
 
-    table, report = build_evidence_report(days=days, seed=seed)
+    candles = None
+    source_label = None
+    if use_real:
+        settings = Settings.from_env()
+        try:
+            candles = resolve_candle_source(
+                use_real=True, token=settings.oanda_api_token, days=days, seed=seed,
+                granularity=granularity, count=count,
+            )
+        except (ValueError, RuntimeError) as exc:
+            print(f"Could not load real candles: {exc}", file=sys.stderr)
+            return 1
+        source_label = (
+            f"real OANDA EUR/USD history ({len(candles)} {granularity} candles, "
+            f"{candles[0].time.date()} to {candles[-1].time.date()})"
+        )
+
+    table, report = build_evidence_report(
+        days=days, seed=seed, candles=candles, source_label=source_label
+    )
     out = Path(out_path)
     if out.parent != Path("."):
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -256,7 +305,10 @@ def main(argv: list[str] | None = None) -> int:
             csv=args.csv,
         )
     if args.command == "evidence":
-        return run_evidence_command(days=args.days, seed=args.seed, out_path=args.out)
+        return run_evidence_command(
+            days=args.days, seed=args.seed, out_path=args.out,
+            use_real=args.real, granularity=args.granularity, count=args.count,
+        )
     if args.command == "live":
         settings = Settings.from_env()
         return run_live_command(
@@ -270,7 +322,10 @@ def main(argv: list[str] | None = None) -> int:
             sleep_seconds=args.sleep_seconds,
         )
     if args.command == "seed":
-        return run_seed_command(db_path=args.db, days=args.days, seed=args.seed)
+        return run_seed_command(
+            db_path=args.db, days=args.days, seed=args.seed,
+            use_real=args.real, granularity=args.granularity, count=args.count,
+        )
     if args.command == "status":
         return run_status_command()
     return 2
