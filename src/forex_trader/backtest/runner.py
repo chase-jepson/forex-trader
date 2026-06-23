@@ -53,11 +53,16 @@ def run_backtest(
     session_start_local: str = "05:00",
     session_end_local: str = "09:00",
     session_tz: str = DEFAULT_SESSION_TZ,
+    repository: TradingRepository | None = None,
 ) -> BacktestResult:
     """Step a strategy through historical candles via the live orchestrator.
 
     Uses the same risk engine, broker fill model, and review flow as live
     execution so backtest evidence is comparable to simulated/practice runs.
+
+    When `repository` is given the audit trail (cycles, reviews, trade stories)
+    persists into it — used by `seed` to populate the dashboard. Otherwise a
+    throwaway database is used so a plain backtest does not pollute the store.
     """
     broker = SimulatedBroker(half_spread_pips=half_spread_pips)
     policy = RiskPolicy(
@@ -67,56 +72,89 @@ def run_backtest(
     )
     active_strategy = strategy or EurUsdOpeningWindowStrategy()
 
+    if repository is not None:
+        return _run_into_repository(
+            repository=repository, broker=broker, policy=policy,
+            strategy=active_strategy, candles=candles, starting_equity=starting_equity,
+            window_size=window_size, max_hold_minutes=max_hold_minutes,
+            half_spread_pips=half_spread_pips, session_start_local=session_start_local,
+            session_end_local=session_end_local, session_tz=session_tz,
+        )
+
     # Backtests persist to a throwaway database so the audit trail mechanics are
     # exercised without polluting the operational store.
     with tempfile.TemporaryDirectory() as tmp:
-        repository = TradingRepository(Path(tmp) / "backtest.db")
-        orchestrator = ExecutionOrchestrator(
-            strategy=active_strategy,
-            risk_policy=policy,
-            broker=broker,
-            repository=repository,
-            equity=starting_equity,
-            max_hold_minutes=max_hold_minutes,
-            session_start_local=session_start_local,
-            session_end_local=session_end_local,
-            session_tz=session_tz,
+        throwaway = TradingRepository(Path(tmp) / "backtest.db")
+        return _run_into_repository(
+            repository=throwaway, broker=broker, policy=policy,
+            strategy=active_strategy, candles=candles, starting_equity=starting_equity,
+            window_size=window_size, max_hold_minutes=max_hold_minutes,
+            half_spread_pips=half_spread_pips, session_start_local=session_start_local,
+            session_end_local=session_end_local, session_tz=session_tz,
         )
 
-        equity_curve = [starting_equity]
-        half_spread = half_spread_pips * PIP_SIZE
-        prev_date = candles[0].time.date() if candles else None
 
-        for index in range(1, len(candles)):
-            window = candles[max(0, index - window_size) : index + 1]
-            current = candles[index]
+def _run_into_repository(
+    *,
+    repository: TradingRepository,
+    broker: SimulatedBroker,
+    policy: RiskPolicy,
+    strategy: Strategy,
+    candles: list[Candle],
+    starting_equity: float,
+    window_size: int,
+    max_hold_minutes: int,
+    half_spread_pips: float,
+    session_start_local: str,
+    session_end_local: str,
+    session_tz: str,
+) -> BacktestResult:
+    orchestrator = ExecutionOrchestrator(
+        strategy=strategy,
+        risk_policy=policy,
+        broker=broker,
+        repository=repository,
+        equity=starting_equity,
+        max_hold_minutes=max_hold_minutes,
+        session_start_local=session_start_local,
+        session_end_local=session_end_local,
+        session_tz=session_tz,
+    )
 
-            # The daily-loss cap is per day; reset the daily bucket at each
-            # calendar-day boundary so one bad day cannot block later days.
-            if current.time.date() != prev_date:
-                orchestrator.reset_daily_pnl()
-                prev_date = current.time.date()
-            quote = Quote(
-                symbol="EUR_USD",
-                bid=current.close - half_spread,
-                ask=current.close + half_spread,
-                time=current.time,
-            )
-            broker.set_quote(quote)
+    equity_curve = [starting_equity]
+    half_spread = half_spread_pips * PIP_SIZE
+    prev_date = candles[0].time.date() if candles else None
 
-            # Resolve intra-bar stop/target fills first, then time/session exits.
-            orchestrator.resolve_stop_target_fills(candle=current, now=current.time)
-            orchestrator.close_expired_positions(
-                now=current.time,
-                price=None,
-                session_end_local=session_end_local,
-            )
-            orchestrator.run_cycle(candles=window, quote=quote, now=current.time)
-            # Equity tracks cumulative PnL across the whole run, not the daily
-            # bucket (which resets at day boundaries).
-            equity_curve.append(starting_equity + orchestrator.cumulative_realized_pnl)
+    for index in range(1, len(candles)):
+        window = candles[max(0, index - window_size) : index + 1]
+        current = candles[index]
 
-        reviews = repository.list_reviews()
+        # The daily-loss cap is per day; reset the daily bucket at each
+        # calendar-day boundary so one bad day cannot block later days.
+        if current.time.date() != prev_date:
+            orchestrator.reset_daily_pnl()
+            prev_date = current.time.date()
+        quote = Quote(
+            symbol="EUR_USD",
+            bid=current.close - half_spread,
+            ask=current.close + half_spread,
+            time=current.time,
+        )
+        broker.set_quote(quote)
+
+        # Resolve intra-bar stop/target fills first, then time/session exits.
+        orchestrator.resolve_stop_target_fills(candle=current, now=current.time)
+        orchestrator.close_expired_positions(
+            now=current.time,
+            price=None,
+            session_end_local=session_end_local,
+        )
+        orchestrator.run_cycle(candles=window, quote=quote, now=current.time)
+        # Equity tracks cumulative PnL across the whole run, not the daily
+        # bucket (which resets at day boundaries).
+        equity_curve.append(starting_equity + orchestrator.cumulative_realized_pnl)
+
+    reviews = repository.list_reviews()
 
     closed = [r for r in reviews if r["outcome"] in {"win", "loss", "scratch"}]
     blocked = [r for r in reviews if r["outcome"] == "blocked"]

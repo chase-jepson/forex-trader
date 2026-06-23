@@ -57,8 +57,43 @@ def build_parser() -> argparse.ArgumentParser:
     live.add_argument("--max-iterations", type=int, default=1, help="Number of ticks to run.")
     live.add_argument("--sleep-seconds", type=float, default=60.0)
 
+    sd = sub.add_parser(
+        "seed", help="Run a backtest into the database so the dashboard has data."
+    )
+    sd.add_argument("--db", help="Database path (defaults to DATABASE_PATH).")
+    sd.add_argument("--days", type=int, default=10, help="Fixture length in days.")
+    sd.add_argument("--seed", type=int, default=42, help="Fixture random seed.")
+
     sub.add_parser("status", help="Print active mode and startup safety status.")
     return parser
+
+
+def run_seed_command(*, db_path: str | None = None, days: int = 10, seed: int = 42) -> int:
+    from datetime import datetime
+
+    from forex_trader.backtest.history import realistic_session_candles
+    from forex_trader.storage.repositories import TradingRepository
+
+    settings = Settings.from_env()
+    path = db_path or settings.database_path
+    repository = TradingRepository(path)
+    candles = realistic_session_candles(
+        start=datetime.fromisoformat("2026-06-01T00:00:00+00:00"), days=days, seed=seed
+    )
+    result = run_backtest(
+        candles=candles,
+        repository=repository,
+        session_start_local="00:00",
+        session_end_local="23:59",
+        session_tz="UTC",
+    )
+    stories = repository.list_trade_stories()
+    print(
+        f"Seeded {path}: {len(stories)} trades, "
+        f"{result.trades_closed} closed, ${result.total_realized_pnl:.2f} PnL.\n"
+        f"View with: streamlit run src/forex_trader/dashboard/app.py"
+    )
+    return 0
 
 
 def run_live_command(
@@ -220,6 +255,8 @@ def main(argv: list[str] | None = None) -> int:
             enable_live=settings.enable_live_trading,
             sleep_seconds=args.sleep_seconds,
         )
+    if args.command == "seed":
+        return run_seed_command(db_path=args.db, days=args.days, seed=args.seed)
     if args.command == "status":
         return run_status_command()
     return 2

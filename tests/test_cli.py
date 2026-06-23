@@ -125,3 +125,25 @@ def test_live_command_executes_dry_run_ticks_via_injected_runner(capsys):
     assert calls["iters"] == 3
     assert "dry_run" in out.lower()
     assert "3" in out
+
+
+def test_seed_command_populates_trades_in_db(tmp_path):
+    from forex_trader.cli import run_seed_command
+    from forex_trader.storage.repositories import TradingRepository
+
+    db = tmp_path / "seed.db"
+    code = run_seed_command(db_path=str(db), days=3, seed=1)
+
+    assert code == 0
+    repo = TradingRepository(db)
+    # The seeded backtest should have produced at least one trade story.
+    assert len(repo.list_trade_stories()) >= 1
+
+
+def test_seed_parser_accepts_options():
+    from forex_trader.cli import build_parser
+
+    args = build_parser().parse_args(["seed", "--days", "5", "--seed", "9"])
+    assert args.command == "seed"
+    assert args.days == 5
+    assert args.seed == 9
