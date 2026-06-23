@@ -100,3 +100,28 @@ def test_live_parser_requires_acknowledge_flag_for_arm():
     assert args.command == "live"
     assert args.arm is True
     assert args.acknowledge is True
+
+
+def test_live_command_executes_dry_run_ticks_via_injected_runner(capsys):
+    from forex_trader.cli import run_live_command
+
+    calls = {}
+
+    def fake_runner(*, arm, max_iterations, sleep_seconds, account_id, token, app_mode):
+        calls["arm"] = arm
+        calls["iters"] = max_iterations
+        # Pretend three dry-run ticks happened.
+        return [("dry_run", "no signal")] * max_iterations
+
+    code = run_live_command(
+        arm=False, acknowledge=True, max_iterations=3,
+        app_mode="practice", account_id="acct", token="tok", enable_live=False,
+        runner=fake_runner,
+    )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert calls["arm"] is False
+    assert calls["iters"] == 3
+    assert "dry_run" in out.lower()
+    assert "3" in out

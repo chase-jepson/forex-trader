@@ -19,6 +19,63 @@ from forex_trader.strategy.base import Strategy
 logger = get_logger("live")
 
 
+def run_oanda_live_loop(
+    *,
+    arm: bool,
+    max_iterations: int,
+    sleep_seconds: float,
+    account_id: str,
+    token: str,
+    app_mode: str,
+) -> list[tuple[str, str]]:
+    """Build the OANDA-backed live loop and run it, returning (status, reason) per tick.
+
+    A dry run (arm=False) fetches live pricing but never reaches the risk engine
+    or places orders. Imports are local so the CLI stays importable without the
+    optional broker dependency. The health check runs first and aborts on failure.
+    """
+    from forex_trader.backtest.history import fetch_oanda_candles
+    from forex_trader.broker.oanda import OandaBroker
+    from forex_trader.config import Settings
+    from forex_trader.risk.policy import RiskPolicy
+    from forex_trader.storage.repositories import TradingRepository
+    from forex_trader.strategy.eurusd_opening_window import EurUsdOpeningWindowStrategy
+
+    settings = Settings.from_env()
+    broker = OandaBroker(mode=app_mode, account_id=account_id, token=token)
+
+    health = broker.health_check()
+    logger.info("OANDA health: ok=%s %s", health.ok, health.reason)
+    if not health.ok:
+        return [("halted", f"Health check failed: {health.reason}")]
+
+    trader = LiveTrader(
+        strategy=EurUsdOpeningWindowStrategy(),
+        risk_policy=RiskPolicy(
+            settings.max_risk_per_trade,
+            settings.max_daily_loss,
+            settings.max_open_positions,
+        ),
+        broker=broker,
+        repository=TradingRepository(settings.database_path),
+        equity=health.balance or 10_000.0,
+        armed=arm,
+        emergency_stop_path=settings.emergency_stop_path,
+        max_hold_minutes=settings.max_hold_minutes,
+        session_start_local=settings.session_start_local,
+        session_end_local=settings.session_end_local,
+        session_tz=settings.session_tz,
+    )
+    fetch = make_oanda_fetch(
+        broker=broker,
+        candle_source=lambda: fetch_oanda_candles(token=token, count=20),
+    )
+    results = trader.run(
+        max_iterations=max_iterations, sleep_seconds=sleep_seconds, fetch=fetch
+    )
+    return [(r.status, r.reason) for r in results]
+
+
 def make_oanda_fetch(
     *,
     broker: object,

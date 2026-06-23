@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from datetime import datetime
 
 from forex_trader.backtest.compare import format_comparison
@@ -17,6 +18,8 @@ STRATEGIES: dict[str, type[Strategy]] = {
     "opening_window": EurUsdOpeningWindowStrategy,
     "mean_reversion": EurUsdMeanReversionStrategy,
 }
+
+LiveRunner = Callable[..., list[tuple[str, str]]]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,6 +71,7 @@ def run_live_command(
     token: str,
     enable_live: bool,
     sleep_seconds: float = 60.0,
+    runner: LiveRunner | None = None,
 ) -> int:
     """Validate every safety gate before the live loop may run.
 
@@ -95,9 +99,28 @@ def run_live_command(
         )
         return 1
 
-    mode_label = "ARMED — will place orders" if arm else "DRY RUN — no orders"
-    print(f"Live loop ready ({app_mode}, {mode_label}, {max_iterations} ticks).")
-    print("Wire fetch() to OANDA pricing and call LiveTrader.run() to execute.")
+    mode_label = "ARMED — placing orders" if arm else "DRY RUN — no orders"
+    print(f"Live loop starting ({app_mode}, {mode_label}, {max_iterations} ticks)...")
+
+    active_runner: LiveRunner
+    if runner is None:
+        from forex_trader.execution.live import run_oanda_live_loop
+
+        active_runner = run_oanda_live_loop
+    else:
+        active_runner = runner
+
+    results = active_runner(
+        arm=arm,
+        max_iterations=max_iterations,
+        sleep_seconds=sleep_seconds,
+        account_id=account_id,
+        token=token,
+        app_mode=app_mode,
+    )
+    for index, (status, reason) in enumerate(results, start=1):
+        print(f"  tick {index}: {status} — {reason}")
+    print(f"Live loop finished: {len(results)} ticks.")
     return 0
 
 
