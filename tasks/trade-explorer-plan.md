@@ -37,3 +37,19 @@ tracking pre-entry that made it expect success → follow it through to close.
 - [ ] H3: Docs: how to view the dashboard, trade-explorer guide.
 
 ## Verify every chunk: pytest -q, ruff, mypy strict. Commit + push.
+
+## PROGRESS (autonomous session, all green, pushed)
+- [x] T1 persist trade lifecycle stories (open + close)
+- [x] T3 TradeStory view-model
+- [x] T4 Plotly candlestick chart with markers
+- [x] T5/T6 Trade Explorer page wired into dashboard
+- [x] Fixed blank multipage nav bug (pages -> sections)
+- [x] `seed` command populates DB; enriches stories with lifecycle candles
+- [x] S1 mean-reversion 0-trades bug fixed (window sized to required_history)
+- [x] BONUS: stopped routine blocks flooding the review log (13k -> 219)
+
+## REMAINING
+- [ ] T2 persist dry-run observations (would-have-traded records)
+- [ ] H1 expand live-loop test coverage
+- [ ] H2/H3 bug-hunt sweep + docs (how to view dashboard, explorer guide)
+- [ ] Equity-curve chart on the reports section
