@@ -72,8 +72,82 @@ def build_parser() -> argparse.ArgumentParser:
     sd.add_argument("--granularity", default="M5", help="Real-candle granularity (M5, M15, H1...).")
     sd.add_argument("--count", type=int, default=5000, help="Real-candle count (max 5000/request).")
 
+    an = sub.add_parser(
+        "analyze",
+        help="Walk-forward analysis on real OANDA history (US-open window).",
+    )
+    an.add_argument("--months", type=int, default=6, help="Months of history to fetch.")
+    an.add_argument("--granularity", default="M5", help="Candle granularity.")
+    an.add_argument("--window-start", default="08:30", help="Session start (ET).")
+    an.add_argument("--window-end", default="11:30", help="Session end (ET).")
+    an.add_argument("--out", default="docs/research/walk-forward-analysis.md")
+
     sub.add_parser("status", help="Print active mode and startup safety status.")
     return parser
+
+
+def run_analyze_command(
+    *,
+    months: int = 6,
+    granularity: str = "M5",
+    window_start: str = "08:30",
+    window_end: str = "11:30",
+    out_path: str = "docs/research/walk-forward-analysis.md",
+) -> int:
+    import json
+    from datetime import UTC, datetime, timedelta
+    from pathlib import Path
+
+    from forex_trader.analysis.market import analyze_window
+    from forex_trader.analysis.walkforward import run_walk_forward
+    from forex_trader.backtest.history_fetch import OandaHistoryFetcher
+    from forex_trader.backtest.session_filter import filter_session_window
+
+    settings = Settings.from_env()
+    if not settings.oanda_api_token:
+        print("analyze needs an OANDA token (set OANDA_API_TOKEN).", file=sys.stderr)
+        return 1
+
+    # NOTE: `now` is read once here for the fetch range; not used in cached logic.
+    end = datetime.now(UTC)
+    start = end - timedelta(days=30 * months)
+    print(f"Fetching ~{months} months of {granularity} EUR/USD history...")
+    fetcher = OandaHistoryFetcher(token=settings.oanda_api_token)
+    raw = fetcher.fetch_range(granularity=granularity, start=start, end=end)
+    window = filter_session_window(
+        raw, tz="America/New_York", start_hhmm=window_start, end_hhmm=window_end
+    )
+    print(f"Fetched {len(raw)} candles; {len(window)} inside the US-open window.")
+
+    stats = analyze_window(window)
+    report = run_walk_forward(
+        candles=window,
+        reward_to_risk_grid=[1.0, 1.5, 2.0, 2.5, 3.0],
+        max_spread_grid=[1.0, 1.5, 2.0, 3.0],
+        min_trades=10,
+        session_start_local=window_start,
+        session_end_local=window_end,
+        session_tz="America/New_York",
+    )
+
+    out = Path(out_path)
+    if out.parent != Path("."):
+        out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "# Walk-Forward Analysis (US-open window)\n\n"
+        f"Window: {window_start}-{window_end} ET, {granularity}, ~{months} months "
+        f"({len(window)} session candles).\n\n"
+        "## Market stats (whole window)\n\n```json\n"
+        + json.dumps(stats, indent=2)
+        + "\n```\n\n## Walk-forward result\n\n```json\n"
+        + json.dumps(
+            {k: v for k, v in report.items() if k != "ranked"}, indent=2
+        )
+        + "\n```\n"
+    )
+    print(json.dumps({k: v for k, v in report.items() if k != "ranked"}, indent=2))
+    print(f"\nReport written to {out_path}")
+    return 0
 
 
 def run_seed_command(
@@ -325,6 +399,12 @@ def main(argv: list[str] | None = None) -> int:
         return run_seed_command(
             db_path=args.db, days=args.days, seed=args.seed,
             use_real=args.real, granularity=args.granularity, count=args.count,
+        )
+    if args.command == "analyze":
+        return run_analyze_command(
+            months=args.months, granularity=args.granularity,
+            window_start=args.window_start, window_end=args.window_end,
+            out_path=args.out,
         )
     if args.command == "status":
         return run_status_command()
