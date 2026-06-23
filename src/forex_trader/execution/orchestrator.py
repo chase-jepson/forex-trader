@@ -130,15 +130,19 @@ class ExecutionOrchestrator:
                 decision.reason,
                 {"signal": signal.__dict__, "explanation": explanation},
             )
-            self.review_service.create_review(
-                trade_id=cycle_id,
-                outcome="blocked",
-                pnl=0.0,
-                market_context={"spread_pips": quote.spread_pips},
-                rule_snapshot={"strategy": signal.strategy_id, "reason": signal.reason},
-                risk_reason=decision.reason,
-                mistake_tags=["rule_blocked"],
-            )
+            # The position-limit block is routine (a trade is already open), not
+            # a learning event — audit it as a cycle but skip the review so the
+            # review log stays meaningful instead of flooding with noise.
+            if not _is_routine_block(decision.reason):
+                self.review_service.create_review(
+                    trade_id=cycle_id,
+                    outcome="blocked",
+                    pnl=0.0,
+                    market_context={"spread_pips": quote.spread_pips},
+                    rule_snapshot={"strategy": signal.strategy_id, "reason": signal.reason},
+                    risk_reason=decision.reason,
+                    mistake_tags=["rule_blocked"],
+                )
             return ExecutionResult(
                 cycle_id=cycle_id,
                 status="blocked",
@@ -288,6 +292,15 @@ def _candle_to_dict(candle: Candle) -> dict[str, object]:
         "low": candle.low,
         "close": candle.close,
     }
+
+
+def _is_routine_block(reason: str) -> bool:
+    """A block that reflects a normal capacity/halt state (a position is already
+    open, or the daily-loss cap has halted trading for the day) rather than a
+    per-signal learning event. These are audited as cycles but not reviewed, so
+    the review log stays meaningful instead of flooding once a limit is hit."""
+    lowered = reason.lower()
+    return "open position" in lowered or "daily loss" in lowered
 
 
 def _outcome_for_pnl(pnl: float) -> str:

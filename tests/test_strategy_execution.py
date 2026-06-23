@@ -59,8 +59,10 @@ def test_orchestrator_persists_blocked_trade_with_review(tmp_path):
 
     assert result.status == "blocked"
     assert "open position" in result.reason.lower()
+    # Every block is audited as a cycle. The routine position-limit block is
+    # intentionally not reviewed (see test_block_review_filter for the policy).
     assert repository.list_cycles()[0]["status"] == "blocked"
-    assert repository.list_reviews()[0]["outcome"] == "blocked"
+    assert repository.list_reviews() == []
 
 
 def test_orchestrator_places_approved_trade_and_persists_order(tmp_path):
