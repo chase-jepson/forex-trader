@@ -29,11 +29,17 @@ def build_equity_curve(
 
 
 def build_equity_figure(curve: dict[str, list[Any]]) -> go.Figure:
-    """Render the equity curve as a line chart."""
+    """Render the equity curve against close time (real datetimes)."""
+    times = curve["times"]
+    # The first point is the "start" sentinel; substitute the first real close
+    # time (or a label) so the x-axis is a clean datetime series.
+    x = list(times)
+    if len(x) > 1 and x[0] == "start":
+        x[0] = times[1]
     fig = go.Figure(
         data=[
             go.Scatter(
-                x=list(range(len(curve["equity"]))),
+                x=x,
                 y=curve["equity"],
                 mode="lines",
                 line={"color": "#2563eb"},
@@ -42,8 +48,8 @@ def build_equity_figure(curve: dict[str, list[Any]]) -> go.Figure:
         ]
     )
     fig.update_layout(
-        title="Equity curve (realized)",
-        xaxis_title="closed trades",
+        title="Equity curve over time (realized)",
+        xaxis_title="close time",
         yaxis_title="equity",
         height=320,
     )
