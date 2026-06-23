@@ -162,6 +162,19 @@ class ExecutionOrchestrator:
             order.reason,
             {"signal": signal.__dict__, "order": order.__dict__, "explanation": explanation},
         )
+        self.repository.open_trade_story(
+            position_id=order.position_id,
+            opened_at=now.isoformat(),
+            side=str(signal.side),
+            entry_price=order.fill_price,
+            stop_loss=signal.stop_loss,
+            take_profit=signal.take_profit,
+            units=order.units,
+            signal_reason=signal.reason,
+            signal_metadata=dict(signal.metadata),
+            risk_reason=decision.reason,
+            context_candles=[_candle_to_dict(candle) for candle in candles],
+        )
         return ExecutionResult(
             cycle_id=cycle_id,
             status="ordered",
@@ -198,6 +211,7 @@ class ExecutionOrchestrator:
                     risk_reason="Forced close policy applied.",
                     mistake_tags=["time_exit"],
                 )
+                self._close_story(closed_position, now, "max_hold_or_session_cutoff")
         return closed
 
     def resolve_stop_target_fills(
@@ -231,6 +245,7 @@ class ExecutionOrchestrator:
                 risk_reason=f"Intra-bar {exit_kind} fill.",
                 mistake_tags=["rule_failed" if exit_kind == "stop_loss" else "rule_worked"],
             )
+            self._close_story(closed_position, now, exit_kind)
         return closed
 
     @staticmethod
@@ -252,6 +267,27 @@ class ExecutionOrchestrator:
         if callable(close_at):
             return close_at(position_id, price, now)  # type: ignore[no-any-return]
         return self.broker.close_position(position_id, price, now)
+
+    def _close_story(self, position: Position, now: datetime, exit_reason: str) -> None:
+        """Update the persisted trade story when a position closes."""
+        self.repository.close_trade_story(
+            position_id=position.position_id,
+            closed_at=now.isoformat(),
+            close_price=position.close_price if position.close_price is not None else 0.0,
+            outcome=_outcome_for_pnl(position.realized_pnl),
+            pnl=position.realized_pnl,
+            exit_reason=exit_reason,
+        )
+
+
+def _candle_to_dict(candle: Candle) -> dict[str, object]:
+    return {
+        "time": candle.time.isoformat(),
+        "open": candle.open,
+        "high": candle.high,
+        "low": candle.low,
+        "close": candle.close,
+    }
 
 
 def _outcome_for_pnl(pnl: float) -> str:
