@@ -84,6 +84,12 @@ def run_seed_command(*, db_path: str | None = None, days: int = 10, seed: int = 
     result = run_backtest(
         candles=candles,
         repository=repository,
+        # Honor the configured risk settings so the seeded data reflects the
+        # operator's actual caps (e.g. a loosened or disabled daily-loss limit).
+        max_risk_per_trade=settings.max_risk_per_trade,
+        max_daily_loss=settings.max_daily_loss,
+        max_open_positions=settings.max_open_positions,
+        max_hold_minutes=settings.max_hold_minutes,
         session_start_local="00:00",
         session_end_local="23:59",
         session_tz="UTC",
