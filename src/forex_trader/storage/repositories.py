@@ -47,6 +47,32 @@ class TradingRepository:
                 )
                 """
             )
+            # One row per trade holding the full lifecycle story for the
+            # trade explorer: the candles the strategy saw before entry, the
+            # signal reasoning, the risk decision, and the eventual exit.
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS trades (
+                    position_id TEXT PRIMARY KEY,
+                    opened_at TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    entry_price REAL NOT NULL,
+                    stop_loss REAL NOT NULL,
+                    take_profit REAL NOT NULL,
+                    units INTEGER NOT NULL,
+                    signal_reason TEXT NOT NULL,
+                    signal_metadata TEXT NOT NULL,
+                    risk_reason TEXT NOT NULL,
+                    context_candles TEXT NOT NULL,
+                    is_dry_run INTEGER NOT NULL DEFAULT 0,
+                    closed_at TEXT,
+                    close_price REAL,
+                    outcome TEXT NOT NULL DEFAULT 'open',
+                    pnl REAL,
+                    exit_reason TEXT
+                )
+                """
+            )
 
     def save_run_state(
         self,
@@ -81,6 +107,94 @@ class TradingRepository:
             "current_day": row["current_day"],
             "daily_realized_pnl": row["daily_realized_pnl"],
             "cumulative_realized_pnl": row["cumulative_realized_pnl"],
+        }
+
+    def open_trade_story(
+        self,
+        *,
+        position_id: str,
+        opened_at: str,
+        side: str,
+        entry_price: float,
+        stop_loss: float,
+        take_profit: float,
+        units: int,
+        signal_reason: str,
+        signal_metadata: dict[str, Any],
+        risk_reason: str,
+        context_candles: list[dict[str, Any]],
+        is_dry_run: bool = False,
+    ) -> None:
+        with connect(self.database_path) as db:
+            db.execute(
+                """
+                INSERT OR REPLACE INTO trades (
+                    position_id, opened_at, side, entry_price, stop_loss,
+                    take_profit, units, signal_reason, signal_metadata,
+                    risk_reason, context_candles, is_dry_run, outcome
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+                """,
+                (
+                    position_id, opened_at, side, entry_price, stop_loss,
+                    take_profit, units, signal_reason,
+                    json.dumps(signal_metadata, default=str), risk_reason,
+                    json.dumps(context_candles, default=str), int(is_dry_run),
+                ),
+            )
+
+    def close_trade_story(
+        self,
+        *,
+        position_id: str,
+        closed_at: str,
+        close_price: float,
+        outcome: str,
+        pnl: float,
+        exit_reason: str,
+    ) -> None:
+        with connect(self.database_path) as db:
+            db.execute(
+                """
+                UPDATE trades
+                SET closed_at = ?, close_price = ?, outcome = ?, pnl = ?,
+                    exit_reason = ?
+                WHERE position_id = ?
+                """,
+                (closed_at, close_price, outcome, pnl, exit_reason, position_id),
+            )
+
+    def get_trade_story(self, position_id: str) -> dict[str, Any] | None:
+        with connect(self.database_path) as db:
+            row = db.execute(
+                "SELECT * FROM trades WHERE position_id = ?", (position_id,)
+            ).fetchone()
+        return None if row is None else self._row_to_story(row)
+
+    def list_trade_stories(self) -> list[dict[str, Any]]:
+        with connect(self.database_path) as db:
+            rows = db.execute("SELECT * FROM trades ORDER BY opened_at").fetchall()
+        return [self._row_to_story(row) for row in rows]
+
+    @staticmethod
+    def _row_to_story(row: Any) -> dict[str, Any]:
+        return {
+            "position_id": row["position_id"],
+            "opened_at": row["opened_at"],
+            "side": row["side"],
+            "entry_price": row["entry_price"],
+            "stop_loss": row["stop_loss"],
+            "take_profit": row["take_profit"],
+            "units": row["units"],
+            "signal_reason": row["signal_reason"],
+            "signal_metadata": json.loads(row["signal_metadata"]),
+            "risk_reason": row["risk_reason"],
+            "context_candles": json.loads(row["context_candles"]),
+            "is_dry_run": bool(row["is_dry_run"]),
+            "closed_at": row["closed_at"],
+            "close_price": row["close_price"],
+            "outcome": row["outcome"],
+            "pnl": row["pnl"],
+            "exit_reason": row["exit_reason"],
         }
 
     def save_cycle(
