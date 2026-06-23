@@ -163,6 +163,23 @@ class TradingRepository:
                 (closed_at, close_price, outcome, pnl, exit_reason, position_id),
             )
 
+    def clear_all(self) -> None:
+        """Delete all cycles, reviews, and trade stories. Used by `seed` to
+        start from a clean slate so the dashboard is not double-populated."""
+        with connect(self.database_path) as db:
+            db.execute("DELETE FROM cycles")
+            db.execute("DELETE FROM reviews")
+            db.execute("DELETE FROM trades")
+
+    def update_story_candles(
+        self, position_id: str, context_candles: list[dict[str, Any]]
+    ) -> None:
+        with connect(self.database_path) as db:
+            db.execute(
+                "UPDATE trades SET context_candles = ? WHERE position_id = ?",
+                (json.dumps(context_candles, default=str), position_id),
+            )
+
     def get_trade_story(self, position_id: str) -> dict[str, Any] | None:
         with connect(self.database_path) as db:
             row = db.execute(

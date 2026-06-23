@@ -67,3 +67,15 @@ def test_list_trade_stories_returns_all_with_open_ones_marked(tmp_path):
 def test_get_missing_trade_story_returns_none(tmp_path):
     repo = TradingRepository(tmp_path / "t.db")
     assert repo.get_trade_story("nope") is None
+
+
+def test_clear_all_empties_trades(tmp_path):
+    repo = TradingRepository(tmp_path / "t.db")
+    repo.open_trade_story(
+        position_id="p", opened_at="2026-06-22T12:00:00+00:00", side="buy",
+        entry_price=1.1, stop_loss=1.09, take_profit=1.11, units=1000,
+        signal_reason="r", signal_metadata={}, risk_reason="ok",
+        context_candles=_candles_payload(),
+    )
+    repo.clear_all()
+    assert repo.list_trade_stories() == []

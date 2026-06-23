@@ -77,6 +77,7 @@ def run_seed_command(*, db_path: str | None = None, days: int = 10, seed: int = 
     settings = Settings.from_env()
     path = db_path or settings.database_path
     repository = TradingRepository(path)
+    repository.clear_all()  # start from a clean slate for a fresh dashboard
     candles = realistic_session_candles(
         start=datetime.fromisoformat("2026-06-01T00:00:00+00:00"), days=days, seed=seed
     )
@@ -87,6 +88,13 @@ def run_seed_command(*, db_path: str | None = None, days: int = 10, seed: int = 
         session_end_local="23:59",
         session_tz="UTC",
     )
+    # Enrich each story with the candle window spanning entry through exit so
+    # the trade explorer can show the trade unfolding over time.
+    from forex_trader.backtest.enrich import enrich_story_candles
+
+    for story in repository.list_trade_stories():
+        enriched = enrich_story_candles(story, candles, pad_before=10)
+        repository.update_story_candles(story["position_id"], enriched["context_candles"])
     stories = repository.list_trade_stories()
     print(
         f"Seeded {path}: {len(stories)} trades, "
