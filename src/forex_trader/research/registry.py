@@ -49,6 +49,17 @@ class ResearchRegistry:
             risk_concerns=["incomplete or delayed event data"],
             status=ResearchStatus.DRAFT,
         )
+        registry.add_hypothesis(
+            strategy_id="eurusd_us_open_fade",
+            summary=(
+                "Fade a thrust beyond the opening range during the US open; "
+                "evidence: 6mo of real data shows ~47% breakout follow-through "
+                "(the window mean-reverts after a thrust)."
+            ),
+            required_inputs=["opening-range candles", "bid/ask quote", "spread"],
+            risk_concerns=["strong trend days overrun the fade", "spread drag"],
+            status=ResearchStatus.DRAFT,  # gated: must be validated before sim
+        )
         return registry
 
     def add_hypothesis(
