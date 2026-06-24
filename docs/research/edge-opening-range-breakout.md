@@ -56,3 +56,25 @@ to the realistic +$4,229. Always distrust a backtest showing >100%/yr.
   out-of-window data.
 - Registered DRAFT, gated behind NullStrategy, never auto-runs. Sign-off + a
   practice forward-test required before any real capital.
+
+## Robustness: a wide PLATEAU, not a lucky value
+
+The strongest evidence this is real, not curve-fit — **every** parameter
+combination across a wide range is positive in **all 4** periods:
+
+- max_range 8→40 pips: net $3,015–$4,153, **4/4 periods every time**
+- target_mult × stop_mult (all 8 combos tested): **4/4 periods every time**
+
+A flat profitable plateau across the whole parameter space is the signature of a
+genuine effect. (The rejected reversion strategies had only isolated lucky cells.)
+
+### Risk/return tradeoff within the plateau
+
+| target / stop | net (2yr) | worst period |
+|---|---|---|
+| 1.0 / 0.5 (max PnL) | $4,105 | $913 |
+| 2.0 / 0.5 (min risk) | $3,171 | **$54** |
+
+`tgt=2.0, stop=0.5` (let winners run 2×, cut losers at 0.5×) sacrifices ~23% of
+PnL for a 17× smaller worst-period drawdown — a much better risk profile, which
+fits the "minimize risk, maximize profit" mandate. Chosen as the default.

@@ -28,8 +28,8 @@ class EurUsdOpeningRangeBreakoutStrategy(Strategy):
         *,
         range_candles: int = 6,
         max_range_pips: float = 12.0,  # tight openings only (validated 10-15 band)
-        target_mult: float = 1.0,
-        stop_mult: float = 0.5,
+        target_mult: float = 2.0,  # let winners run (lower-risk profile)
+        stop_mult: float = 0.5,    # cut losers at half the range
         max_spread_pips: float = 2.0,
     ) -> None:
         self.range_candles = range_candles
