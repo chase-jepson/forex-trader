@@ -1,8 +1,13 @@
-# Validated Edge: Session-Mean Reversion (US-open)
+# Session-Mean Reversion (US-open) — EDGE DID NOT HOLD ON 12 MONTHS
 
-After breakout and fade strategies both failed walk-forward validation, a
-**session-mean reversion** rule was found that is positive on both in-sample and
-out-of-sample real data.
+> **RETRACTION (important):** This rule looked validated on a 6-month sample but
+> **failed on 12 months.** When tested across a full year split in half, the
+> recent 6 months (Dec 2025–Jun 2026) were profitable but the prior 6 months
+> (Jun–Dec 2025) **lost** — and **zero** parameter configurations were positive
+> in *both* halves of the year. The "edge" was a **regime artifact**, not a
+> stable, all-weather edge. It is NOT suitable for deployment. The analysis
+> below is kept as a record of how the apparent edge arose and why it was
+> rejected. Lesson: 6 months was too short; the longer test caught it.
 
 ## The insight from the data
 

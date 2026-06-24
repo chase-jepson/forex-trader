@@ -64,17 +64,16 @@ class ResearchRegistry:
             strategy_id="eurusd_vwap_reversion",
             summary=(
                 "Fade extension from the running session mean during the US open. "
-                "Evidence: when price extends >=20-30 pips from the session mean it "
-                "reverts ~60%+ of the time. Walk-forward validated POSITIVE on both "
-                "in-sample (+$147) and out-of-sample (+$41, 53% win) on 6mo real data."
+                "Looked validated on 6mo (in +$147 / out +$41) but FAILED on 12mo: "
+                "profitable in the recent 6 months, losing in the prior 6, with ZERO "
+                "configs positive in both halves. Regime artifact, not a stable edge."
             ),
             required_inputs=["session candles", "bid/ask quote", "spread"],
             risk_concerns=[
+                "edge does not persist across regimes (failed 12mo validation)",
                 "trend days that keep extending past the stop",
-                "spread drag on a tight target",
-                "small out-of-sample trade count",
             ],
-            status=ResearchStatus.DRAFT,  # validated but awaiting user sign-off
+            status=ResearchStatus.REJECTED,  # failed longer walk-forward
         )
         return registry
 
