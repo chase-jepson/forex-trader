@@ -48,6 +48,7 @@ class Candle:
     high: float
     low: float
     close: float
+    volume: int = 0  # tick count (OANDA); 0 when unknown
 
 
 @dataclass(frozen=True)

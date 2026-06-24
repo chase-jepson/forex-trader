@@ -54,3 +54,23 @@ A durable edge, if one exists, likely needs information beyond price-in-a-window
 
 Each is a real experiment the existing framework can validate the same rigorous
 way. None should be deployed on the strength of one 6-month sample again.
+
+## UPDATE: volume confirmation tested — also regime-dependent
+
+Added tick-volume to the Candle model and built a volume-confirmed reversion
+strategy (fade extension from the session mean ONLY on a high-volume exhaustion
+spike). Volume genuinely predicts move *magnitude* (4.1p next-move after high
+volume vs 2.0p after low) and improves the reversion *rate* (63% -> 69% at
+ext>=20p with volume confirmation).
+
+BUT on the 12-month both-halves test it failed the same way everything else
+did: strongly positive in the recent 6 months (up to +$275 at 66% win) and
+negative across the board in the prior 6 months. ZERO configs positive in both
+halves.
+
+This is now the THIRD independent confirmation of the same thing: the apparent
+reversion edge is a property of the recent regime (Dec 2025–Jun 2026 was
+mean-reverting), not a durable edge. Volume made the recent half look *better*,
+which is exactly the trap. The market regime, not any rule, explains the
+results. A real edge would require detecting and adapting to the regime itself —
+and proving the adaptation isn't just fit to these particular 12 months.

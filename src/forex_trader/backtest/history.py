@@ -28,6 +28,7 @@ def parse_oanda_candles(payload: dict[str, Any]) -> list[Candle]:
                 high=float(mid["h"]),
                 low=float(mid["l"]),
                 close=float(mid["c"]),
+                volume=int(item.get("volume", 0)),
             )
         )
     return candles

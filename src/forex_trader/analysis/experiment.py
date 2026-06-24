@@ -21,6 +21,7 @@ def load_cached_candles(path: str | Path) -> list[Candle]:
         Candle(
             time=datetime.fromisoformat(r["time"]),
             open=r["open"], high=r["high"], low=r["low"], close=r["close"],
+            volume=int(r.get("volume", 0)),
         )
         for r in rows
     ]
