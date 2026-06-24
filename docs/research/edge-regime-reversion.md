@@ -59,3 +59,30 @@ gains.
 1. Validate on 2–3 years of data (more both-halves splits / rolling windows).
 2. Confirm trade frequency is high enough to matter, or relax the gate carefully.
 3. Forward-test in dry-run / practice mode for a period before any live use.
+
+## UPDATE: 2-year stress test (4 independent periods)
+
+Fetched 2 years and split into 4 consecutive 6-month periods. The validated
+config (ext=22, stop=12, window=8):
+
+| Period | PnL | Win | Trades | Drawdown |
+|---|---|---|---|---|
+| 2024 H2 | -$27 | 0% | 1 | $27 |
+| 2024H2–2025H1 | **+$393** | 69% | 32 | $58 |
+| 2025 H2 | -$24 | 40% | 5 | $71 |
+| 2025H2–2026 | +$50 | 50% | 10 | $54 |
+
+**Positive in 2 of 4 periods**, net +$392 over 2 years. The honest read:
+
+- **The edge is real but fragile and lumpy.** Most of the profit comes from one
+  favorable stretch (early 2025). Two periods barely traded.
+- **The gate controls downside well** — the two losing periods lost only -$27 and
+  -$24. It successfully sits out when reversion isn't working.
+- But it is **not a consistent, all-weather edge.** It is a small positive
+  expectancy that shows up in some regimes and goes dormant in others.
+
+**Verdict:** keep as DRAFT. It is the best validated candidate, downside-safe,
+and net-positive over 2 years — but it is thin and inconsistent. It is suitable
+for a long dry-run / practice forward-test to gather live evidence, NOT for
+meaningful capital. This is consistent with the reality that retail FX edges are
+small and hard-won.
