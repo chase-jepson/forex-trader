@@ -96,6 +96,25 @@ class ResearchRegistry:
             ],
             status=ResearchStatus.REJECTED,  # honest continuous test: no edge
         )
+        registry.add_hypothesis(
+            strategy_id="eurusd_opening_range_breakout",
+            summary=(
+                "Trade a clean directional expansion out of a TIGHT (<=~12 pip) "
+                "opening 30-min range; one trade per session. Direction-via-"
+                "volatility, not price-pattern. The first edge to survive honest "
+                "validation: positive in ALL 4 independent 6-month periods, "
+                "continuous == per-period (no artifact), and out-of-sample +$1822 "
+                "(55% win) after selecting on year 1. ~21%/yr, maxDD ~$300, "
+                "return/DD ~14. Net of spread."
+            ),
+            required_inputs=["opening-range candles (first 30 min)", "bid/ask quote", "spread"],
+            risk_concerns=[
+                "needs the one-trade-per-session guard (re-entry bug inflates results)",
+                "only ~2 years validated; wants more history + dry-run forward test",
+                "tight-range filter is the key — wide openings do not work",
+            ],
+            status=ResearchStatus.DRAFT,  # validated candidate; awaiting sign-off
+        )
         return registry
 
     def add_hypothesis(
