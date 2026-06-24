@@ -60,6 +60,22 @@ class ResearchRegistry:
             risk_concerns=["strong trend days overrun the fade", "spread drag"],
             status=ResearchStatus.DRAFT,  # gated: must be validated before sim
         )
+        registry.add_hypothesis(
+            strategy_id="eurusd_vwap_reversion",
+            summary=(
+                "Fade extension from the running session mean during the US open. "
+                "Evidence: when price extends >=20-30 pips from the session mean it "
+                "reverts ~60%+ of the time. Walk-forward validated POSITIVE on both "
+                "in-sample (+$147) and out-of-sample (+$41, 53% win) on 6mo real data."
+            ),
+            required_inputs=["session candles", "bid/ask quote", "spread"],
+            risk_concerns=[
+                "trend days that keep extending past the stop",
+                "spread drag on a tight target",
+                "small out-of-sample trade count",
+            ],
+            status=ResearchStatus.DRAFT,  # validated but awaiting user sign-off
+        )
         return registry
 
     def add_hypothesis(
