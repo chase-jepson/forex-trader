@@ -39,7 +39,9 @@ def run_oanda_live_loop(
     from forex_trader.config import Settings
     from forex_trader.risk.policy import RiskPolicy
     from forex_trader.storage.repositories import TradingRepository
-    from forex_trader.strategy.eurusd_opening_window import EurUsdOpeningWindowStrategy
+    from forex_trader.strategy.eurusd_opening_range_breakout import (
+        EurUsdOpeningRangeBreakoutStrategy,
+    )
 
     settings = Settings.from_env()
     broker = OandaBroker(mode=app_mode, account_id=account_id, token=token)
@@ -50,7 +52,9 @@ def run_oanda_live_loop(
         return [("halted", f"Health check failed: {health.reason}")]
 
     trader = LiveTrader(
-        strategy=EurUsdOpeningWindowStrategy(),
+        # The validated edge (see docs/research/edge-opening-range-breakout.md).
+        # Dry-run by default; never auto-armed.
+        strategy=EurUsdOpeningRangeBreakoutStrategy(),
         risk_policy=RiskPolicy(
             settings.max_risk_per_trade,
             settings.max_daily_loss,
