@@ -57,3 +57,30 @@ range-fade is not.
 `eurusd_regime_reversion`: ext=22, target_fraction=0.5, stop=12, regime_window=8,
 **regime_threshold=5, volume_mult=1.2** → net +$498 over 2yr, positive 3 of 4
 periods, worst period −$27. Thin but real, downside-controlled, fixed-risk.
+
+## CRITICAL CORRECTION: the 3-of-4 result was an evaluation artifact
+
+Running the strategy CONTINUOUSLY across 2 years (one regime tracker, as it
+would actually deploy) reveals only **1 trade, −$27** — not +$498. The +$498 /
+3-of-4 came from evaluating each 6-month period with a FRESH regime tracker,
+which gave each period an "innocent until proven" restart.
+
+**Root cause (a real strategy flaw):** the regime gate starves itself. It only
+records outcomes from trades it *executes*, but it won't execute when the regime
+looks unfavorable — so after one early loss, `strength()` stays negative forever
+and it never trades again. The per-period reset hid this deadlock.
+
+**The fix (identified, not yet built):** the regime tracker must learn from
+*observed* market reversion outcomes (did each extension revert?), whether or not
+we traded it — so the regime read stays live while sitting out. My earlier
+from-scratch sim did exactly this and produced the 3-of-4 result; the PRODUCTION
+strategy only records executed-trade outcomes, which deadlocks. This requires
+feeding observed (counterfactual) outcomes through the runner — a real design
+change.
+
+**Honest current state:** the regime-reversion strategy, as actually built and
+deployed continuously, does NOT make money. The promising 3-of-4 result is only
+achievable IF the observe-every-extension fix is implemented and re-validated
+continuously. Until then, no validated profitable strategy exists. The earlier
+edge-regime-reversion.md numbers were per-period and are NOT realistic for
+continuous deployment.
