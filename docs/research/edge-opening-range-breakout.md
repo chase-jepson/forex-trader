@@ -100,3 +100,18 @@ backtest mirage — and it is the strongest result in the entire research effort
 out-of-sample-positive, parameter-robust, cross-pair-consistent edge of ~15-25%/yr
 with a strong return/drawdown profile. It remains DRAFT pending a live dry-run
 forward-test, but it is the concrete, defensible result the search set out to find.
+
+## Final hardening: profit is broadly distributed (not outlier-dependent)
+
+A fragile strategy makes its money on a few lucky days. This one does not:
+
+- 447 trades; the **top 10 contribute only 30%** of profit (top 5: 15%).
+- 157 wins averaging **+$74**, 288 losses averaging **−$30** — a **2.5:1**
+  win/loss size ratio. The 2×-target/0.5×-stop asymmetry means it profits even
+  at a ~35% win rate, by design.
+
+Profit comes from a structural asymmetry (small frequent losses, larger
+occasional expansion wins) spread across hundreds of trades — the profile of a
+robust edge, not luck. This closes the last robustness question. The strategy is
+as validated as a backtest can make it; the only remaining proof is a live
+forward-test on new data.
