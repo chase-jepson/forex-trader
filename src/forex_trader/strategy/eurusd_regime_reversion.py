@@ -47,22 +47,75 @@ class EurUsdRegimeReversionStrategy(Strategy):
         self.regime = ReversionRegimeTracker(
             window=regime_window, favor_threshold=regime_threshold
         )
+        # Pending observed extensions awaiting resolution: (deviation_sign,
+        # entry_price, session_mean, target_price, stop_price, last_seen_time).
+        # These let the strategy keep its regime read live by observing whether
+        # extensions revert — even on bars where it does not trade — so it never
+        # deadlocks itself.
+        self._pending: list[dict[str, float]] = []
+        self._last_obs_time: float | None = None
 
     def observe_reversion_outcome(self, pnl_pips: float) -> None:
-        """Feed a completed reversion trade's pip result to the regime tracker."""
-        self.regime.record_outcome(pnl_pips)
+        """No-op: the strategy now self-observes every extension in evaluate(),
+        so it does not need executed-trade feedback from the runner (which would
+        double-count and could deadlock when not trading)."""
+        return None
+
+    def _observe(self, candle: Candle, mean: float) -> None:
+        """Resolve pending observed extensions against this candle and register
+        a new one if the candle is itself an extension.
+
+        This keeps the regime tracker learning from market behavior whether or
+        not the strategy trades, so a quiet/unfavorable stretch cannot
+        permanently starve the gate.
+        """
+        target_move_frac = self.target_fraction
+        still_pending: list[dict[str, float]] = []
+        for ext in self._pending:
+            if ext["sign"] > 0:  # extended above mean -> reverts down
+                if candle.low <= ext["target"]:
+                    self.regime.record_outcome(ext["reward"])
+                    continue
+                if candle.high >= ext["stop"]:
+                    self.regime.record_outcome(-self.stop_pips)
+                    continue
+            else:  # extended below mean -> reverts up
+                if candle.high >= ext["target"]:
+                    self.regime.record_outcome(ext["reward"])
+                    continue
+                if candle.low <= ext["stop"]:
+                    self.regime.record_outcome(-self.stop_pips)
+                    continue
+            still_pending.append(ext)
+        self._pending = still_pending
+
+        deviation = (candle.close - mean) / PIP_SIZE
+        if abs(deviation) >= self.extension_pips:
+            move = abs(candle.close - mean) * target_move_frac
+            sign = 1.0 if deviation > 0 else -1.0
+            self._pending.append({
+                "sign": sign,
+                "reward": move / PIP_SIZE,
+                "target": candle.close - move if sign > 0 else candle.close + move,
+                "stop": candle.close + self.stop_pips * PIP_SIZE if sign > 0
+                else candle.close - self.stop_pips * PIP_SIZE,
+            })
 
     def evaluate(self, candles: list[Candle], quote: Quote | None) -> Signal | None:
-        if quote is None or len(candles) <= self.min_history:
+        if len(candles) <= self.min_history:
             return None
-        if quote.spread_pips > self.max_spread_pips:
-            return None
-        if not self.regime.reversion_favored():
-            return None  # recent regime does not favor reversion — stand aside
 
         prior = candles[:-1]
         mean = sum(c.close for c in prior) / len(prior)
         latest_candle = candles[-1]
+        # Observe market reversion behavior every bar to keep the regime live.
+        self._observe(latest_candle, mean)
+
+        if quote is None or quote.spread_pips > self.max_spread_pips:
+            return None
+        if not self.regime.reversion_favored():
+            return None  # recent regime does not favor reversion — stand aside
+
         latest = latest_candle.close
         deviation_pips = (latest - mean) / PIP_SIZE
         if abs(deviation_pips) < self.extension_pips:

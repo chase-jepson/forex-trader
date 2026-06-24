@@ -84,3 +84,36 @@ achievable IF the observe-every-extension fix is implemented and re-validated
 continuously. Until then, no validated profitable strategy exists. The earlier
 edge-regime-reversion.md numbers were per-period and are NOT realistic for
 continuous deployment.
+
+## FINAL VERDICT on regime-gated reversion: no real edge
+
+Built the fix — the strategy now SELF-OBSERVES every extension's outcome in
+evaluate() (whether or not it trades), so the regime tracker stays live and
+never deadlocks. Re-ran the honest CONTINUOUS 2-year test:
+
+| threshold | net | %/yr | trades | win | maxDD |
+|---|---|---|---|---|---|
+| 0 | −$36 | −0.2% | 158 | 44% | $321 |
+| 5 | −$106 | −0.5% | 152 | 43% | $377 |
+| 10 | −$82 | −0.4% | 141 | 43% | $372 |
+
+With the deadlock fixed and a realistic trade count, the strategy **loses** —
+44% win rate, negative net, at every threshold. The earlier +$498/3-of-4 was
+entirely the per-period-reset artifact. Marked REJECTED.
+
+## Where the whole search stands
+
+Every avenue — breakout, fade, classic/VWAP/volume/regime reversion, momentum,
+gaps, range-fade, other pairs, other sessions, filters, sizing — has been tested
+with honest continuous walk-forward validation. **None has a real, deployable
+edge on EUR/USD US-open after spread.** The reversion *tendency* is real (~60% at
+deep extension) but too weak to clear the ~2-pip spread once you account for
+losers and regime shifts. This is consistent with market-efficiency reality:
+liquid-FX price-only edges are largely arbitraged away.
+
+The valuable assets produced: a rigorous, honest backtest/walk-forward framework
+that repeatedly refused to certify curve-fits, real cached data (multiple
+pairs/sessions, 2yr), and documented negative results that save chasing dead
+ends. A genuine edge, if one exists, needs information this search did not use:
+order-flow/L2 microstructure, the economic calendar, or cross-asset/rates
+context — none available from OANDA M5 candles alone.

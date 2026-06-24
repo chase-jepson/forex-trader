@@ -90,11 +90,11 @@ class ResearchRegistry:
                 "feedback of completed reversion outcomes (regime tracker)",
             ],
             risk_concerns=[
-                "very low trade frequency (small sample)",
-                "regime detector could still be fit to these 12 months",
-                "needs 2+ years to firm up confidence",
+                "REJECTED: continuous deployment loses (~44% win, negative net)",
+                "the +$498/3-of-4 result was a per-period-reset evaluation artifact",
+                "self-observing fix removed the deadlock but revealed no real edge",
             ],
-            status=ResearchStatus.DRAFT,  # best candidate yet; awaiting sign-off
+            status=ResearchStatus.REJECTED,  # honest continuous test: no edge
         )
         return registry
 

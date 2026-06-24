@@ -31,10 +31,10 @@ def test_emits_reversion_signal_when_extended_and_regime_neutral():
 
 def test_blocks_when_regime_unfavorable():
     strat = EurUsdRegimeReversionStrategy(min_history=6, extension_pips=18.0, regime_window=3)
-    # Feed the tracker recent reversion losses -> regime turns unfavorable.
-    strat.observe_reversion_outcome(-15)
-    strat.observe_reversion_outcome(-12)
-    strat.observe_reversion_outcome(-10)
+    # Simulate a recent regime where reversion lost (extensions didn't revert).
+    strat.regime.record_outcome(-15)
+    strat.regime.record_outcome(-12)
+    strat.regime.record_outcome(-10)
 
     rows = [1.1000] * 6 + [1.1020]
     quote = Quote(symbol="EUR_USD", bid=1.1019, ask=1.1021, time=_candles(rows)[-1].time)
