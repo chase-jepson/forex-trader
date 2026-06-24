@@ -36,3 +36,24 @@ worst period −$27. Real but thin; downside-controlled.
 - Session high/low (not mean) as reversion anchors
 - Multi-candle exhaustion confirmation
 - Position sizing by regime confidence (bet more when regime strongly favors)
+
+## More angles (continued)
+
+| Angle | Result | Verdict |
+|---|---|---|
+| Regime-strength threshold (>5 not >0) + volume gate | +$498 / 3 of 4, worst −$27 | **REAL improvement, in-engine** |
+| Continuous regime state (2yr) | net +164p / 3 of 4 at thr=10 | P0 is genuinely unprofitable, not a warm-up artifact |
+| Confidence-weighted sizing | doubles net BUT adds leverage/risk | rejected (conflicts with minimize-risk) |
+| Session high/low range-fade | 398p gross / 3 of 4 BUT only ~1.4p/trade | **SPREAD TRAP** — gross < 2p spread, loses in reality |
+
+### Key discipline reinforced
+A backtest in raw pips can look great yet lose after the ~2-pip round-trip
+spread. Any high-frequency edge must clear gross pips-per-trade > spread. The
+mean-anchor regime reversion (+$498 through the real engine WITH spread, ~40
+trades, ~12+ pips/trade gross) is the genuine result; the high-frequency
+range-fade is not.
+
+## Current best (validated, in real engine with spread)
+`eurusd_regime_reversion`: ext=22, target_fraction=0.5, stop=12, regime_window=8,
+**regime_threshold=5, volume_mult=1.2** → net +$498 over 2yr, positive 3 of 4
+periods, worst period −$27. Thin but real, downside-controlled, fixed-risk.
