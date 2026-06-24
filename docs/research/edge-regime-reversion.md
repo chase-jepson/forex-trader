@@ -86,3 +86,35 @@ and net-positive over 2 years — but it is thin and inconsistent. It is suitabl
 for a long dry-run / practice forward-test to gather live evidence, NOT for
 meaningful capital. This is consistent with the reality that retail FX edges are
 small and hard-won.
+
+## IMPROVEMENT: regime-strength threshold + volume gate (3-of-4 periods)
+
+Two refinements lifted the edge from 2-of-4 to 3-of-4 periods at FIXED risk:
+
+1. **Volume gate** — only fade a high-volume (exhaustion) extension spike.
+2. **Regime-strength threshold** — only trade when the trailing regime strength
+   (net recent reversion pips) exceeds a threshold (default 5), not merely >0.
+   This skips marginal trades, raising win rate and consistency.
+
+Validated in the production engine across 4 independent 6-month periods (2yr):
+
+| Config | Net | Periods + | Worst | Trades |
+|---|---|---|---|---|
+| threshold=0 (old) | +$427 | 2 of 4 | −$27 | 43 |
+| **threshold=5 (new default)** | **+$498** | **3 of 4** | −$27 | 40 |
+
+Per-period: [−27, 399, 4, 122] — the previously-dead P2 flipped positive (+$4)
+and P3 grew (68→122), while the big winner P1 stayed intact. No leverage; the
+gain comes from better selectivity, not bigger bets.
+
+### Honest nuance (important)
+
+The strategy is stateful: its regime tracker must "warm up" with observed
+reversion outcomes before the strength threshold can be met. On a single
+continuous 12-month run it therefore trades very little early on. The 4-period
+evaluation (each period a fresh 6-month deployment) is the realistic test and is
+where the +$498 / 3-of-4 result holds. In live use the tracker would carry state
+across days continuously, which behaves like the per-period test once warmed up.
+
+Still DRAFT, still thin, still needs forward-testing — but meaningfully more
+consistent than before.

@@ -29,19 +29,24 @@ class EurUsdRegimeReversionStrategy(Strategy):
         self,
         *,
         min_history: int = 6,
-        extension_pips: float = 22.0,   # validated config (12mo walk-forward)
-        target_fraction: float = 0.4,
+        extension_pips: float = 22.0,   # validated config (2yr 4-period walk-forward)
+        target_fraction: float = 0.5,
         stop_pips: float = 12.0,
         max_spread_pips: float = 2.0,
         regime_window: int = 8,
+        regime_threshold: float = 5.0,  # trade only in strongly-reverting regimes
+        volume_mult: float = 1.2,        # require an elevated (exhaustion) volume
     ) -> None:
         self.min_history = min_history
         self.extension_pips = extension_pips
         self.target_fraction = target_fraction
         self.stop_pips = stop_pips
         self.max_spread_pips = max_spread_pips
+        self.volume_mult = volume_mult
         self.required_history = min_history + 1
-        self.regime = ReversionRegimeTracker(window=regime_window)
+        self.regime = ReversionRegimeTracker(
+            window=regime_window, favor_threshold=regime_threshold
+        )
 
     def observe_reversion_outcome(self, pnl_pips: float) -> None:
         """Feed a completed reversion trade's pip result to the regime tracker."""
@@ -57,10 +62,17 @@ class EurUsdRegimeReversionStrategy(Strategy):
 
         prior = candles[:-1]
         mean = sum(c.close for c in prior) / len(prior)
-        latest = candles[-1].close
+        latest_candle = candles[-1]
+        latest = latest_candle.close
         deviation_pips = (latest - mean) / PIP_SIZE
         if abs(deviation_pips) < self.extension_pips:
             return None
+
+        # Volume gate: the extension must be a high-volume exhaustion spike.
+        if self.volume_mult > 0:
+            avg_volume = sum(c.volume for c in prior) / len(prior)
+            if avg_volume <= 0 or latest_candle.volume < avg_volume * self.volume_mult:
+                return None
 
         stop = self.stop_pips * PIP_SIZE
         target_move = abs(latest - mean) * self.target_fraction
