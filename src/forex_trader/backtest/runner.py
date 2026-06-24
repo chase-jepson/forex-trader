@@ -147,12 +147,21 @@ def _run_into_repository(
         broker.set_quote(quote)
 
         # Resolve intra-bar stop/target fills first, then time/session exits.
-        orchestrator.resolve_stop_target_fills(candle=current, now=current.time)
-        orchestrator.close_expired_positions(
+        closed_positions = orchestrator.resolve_stop_target_fills(
+            candle=current, now=current.time
+        )
+        closed_positions += orchestrator.close_expired_positions(
             now=current.time,
             price=None,
             session_end_local=session_end_local,
         )
+        # Feed completed-trade pip results to a regime-aware strategy so its
+        # regime read stays current (no-op for stateless strategies).
+        observe = getattr(strategy, "observe_reversion_outcome", None)
+        if callable(observe):
+            for pos in closed_positions:
+                pip_pnl = pos.realized_pnl / (pos.units * PIP_SIZE) if pos.units else 0.0
+                observe(pip_pnl)
         orchestrator.run_cycle(candles=window, quote=quote, now=current.time)
         # Equity tracks cumulative PnL across the whole run, not the daily
         # bucket (which resets at day boundaries).

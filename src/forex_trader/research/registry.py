@@ -75,6 +75,27 @@ class ResearchRegistry:
             ],
             status=ResearchStatus.REJECTED,  # failed longer walk-forward
         )
+        registry.add_hypothesis(
+            strategy_id="eurusd_regime_reversion",
+            summary=(
+                "Session-mean reversion GATED by a forecastable multi-day regime "
+                "signal (only fade when reversion has paid recently). The first "
+                "rule to survive the 12mo both-halves walk-forward in the real "
+                "engine: honest in-sample selection gave out-of-sample +$69, 55% "
+                "win. Trades rarely (very selective). Needs larger-sample "
+                "confirmation before deployment."
+            ),
+            required_inputs=[
+                "session candles", "bid/ask quote", "spread",
+                "feedback of completed reversion outcomes (regime tracker)",
+            ],
+            risk_concerns=[
+                "very low trade frequency (small sample)",
+                "regime detector could still be fit to these 12 months",
+                "needs 2+ years to firm up confidence",
+            ],
+            status=ResearchStatus.DRAFT,  # best candidate yet; awaiting sign-off
+        )
         return registry
 
     def add_hypothesis(
